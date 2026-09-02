@@ -1,0 +1,28 @@
+{
+  "report_type": "daily",
+  "date": "2026-07-03",
+  "generated_at": "2026-07-03T21:25:03.240199",
+  "portfolio": {
+    "total_equity": 1000.0,
+    "spot_equity": 900.0,
+    "futures_equity": 100.0,
+    "unrealized_pnl": 11.059999999999999,
+    "drawdown_pct": 0.0
+  },
+  "performance": {
+    "total_trades": 0,
+    "wins": 0,
+    "losses": 0,
+    "win_rate": 0,
+    "total_pnl_usdt": 0,
+    "total_pnl_pct": 0,
+    "avg_rr": 0,
+    "daily_loss_pct": 0.0,
+    "loss_streak": 0
+  },
+  "best_trade": {},
+  "worst_trade": {},
+  "trades": [],
+  "risk_events": [],
+  "market_regime": "trending_down"
+}

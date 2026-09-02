@@ -1,0 +1,609 @@
+{
+  "version": "1.0",
+  "updated_at": "2026-07-04T09:54:10.572762",
+  "pattern_library": {
+    "winning_patterns": [],
+    "losing_patterns": [],
+    "high_confidence_setups": []
+  },
+  "coin_profiles": {
+    "BTCUSDT": {
+      "avg_daily_range_pct": 0.03,
+      "avg_volatility": 0.025,
+      "best_timeframe": "4h",
+      "best_strategy": "rotational",
+      "regime_history": [],
+      "last_10_trades": [
+        {
+          "result": "loss",
+          "pnl_pct": -0.092,
+          "strategy": "rotational",
+          "closed_at": "2026-07-03T21:30:24.517540"
+        },
+        {
+          "result": "loss",
+          "pnl_pct": -0.092,
+          "strategy": "rotational",
+          "closed_at": "2026-07-03T21:30:24.517540"
+        },
+        {
+          "result": "loss",
+          "pnl_pct": -0.092,
+          "strategy": "rotational",
+          "closed_at": "2026-07-03T21:30:24.517540"
+        },
+        {
+          "result": "loss",
+          "pnl_pct": -0.092,
+          "strategy": "rotational",
+          "closed_at": "2026-07-03T21:30:24.517540"
+        },
+        {
+          "result": "loss",
+          "pnl_pct": -0.092,
+          "strategy": "rotational",
+          "closed_at": "2026-07-03T21:30:24.517540"
+        }
+      ],
+      "win_rate": 0.0,
+      "trade_count": 5
+    },
+    "ETHUSDT": {
+      "avg_daily_range_pct": 0.04,
+      "avg_volatility": 0.035,
+      "best_timeframe": "1h",
+      "best_strategy": "swing",
+      "regime_history": [],
+      "last_10_trades": []
+    },
+    "SOLUSDT": {
+      "avg_daily_range_pct": 0.06,
+      "avg_volatility": 0.05,
+      "best_timeframe": "1h",
+      "best_strategy": "breakout",
+      "regime_history": [],
+      "last_10_trades": []
+    },
+    "XRPUSDT": {
+      "avg_daily_range_pct": 0.05,
+      "avg_volatility": 0.045,
+      "best_timeframe": "4h",
+      "best_strategy": "pullback",
+      "regime_history": [],
+      "last_10_trades": []
+    },
+    "TRXUSDT": {
+      "win_rate": 1.0,
+      "trade_count": 5,
+      "best_strategy": "swing",
+      "last_10_trades": [
+        {
+          "result": "win",
+          "pnl_pct": 0.664,
+          "strategy": "swing",
+          "closed_at": "2026-07-04T00:14:16.397333"
+        },
+        {
+          "result": "win",
+          "pnl_pct": 0.664,
+          "strategy": "swing",
+          "closed_at": "2026-07-04T00:14:16.397333"
+        },
+        {
+          "result": "win",
+          "pnl_pct": 0.664,
+          "strategy": "swing",
+          "closed_at": "2026-07-04T00:14:16.397333"
+        },
+        {
+          "result": "win",
+          "pnl_pct": 0.664,
+          "strategy": "swing",
+          "closed_at": "2026-07-04T00:14:16.397333"
+        },
+        {
+          "result": "win",
+          "pnl_pct": 0.664,
+          "strategy": "swing",
+          "closed_at": "2026-07-04T00:14:16.397333"
+        }
+      ]
+    },
+    "SHIBUSDT": {
+      "win_rate": 0.0,
+      "trade_count": 5,
+      "best_strategy": "breakout",
+      "last_10_trades": [
+        {
+          "result": "loss",
+          "pnl_pct": -0.05,
+          "strategy": "breakout",
+          "closed_at": "2026-07-04T05:25:16.824074"
+        },
+        {
+          "result": "loss",
+          "pnl_pct": -0.05,
+          "strategy": "breakout",
+          "closed_at": "2026-07-04T05:25:16.824074"
+        },
+        {
+          "result": "loss",
+          "pnl_pct": -0.05,
+          "strategy": "breakout",
+          "closed_at": "2026-07-04T05:25:16.824074"
+        },
+        {
+          "result": "loss",
+          "pnl_pct": -0.05,
+          "strategy": "breakout",
+          "closed_at": "2026-07-04T05:25:16.824074"
+        },
+        {
+          "result": "loss",
+          "pnl_pct": -0.05,
+          "strategy": "breakout",
+          "closed_at": "2026-07-04T05:25:16.824074"
+        }
+      ]
+    }
+  },
+  "indicator_adjustments": {
+    "rsi_overbought": 70,
+    "rsi_oversold": 30,
+    "adx_threshold": 25,
+    "confidence_threshold": 0.6
+  },
+  "error_log": [
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    },
+    {
+      "symbol": "BTCUSDT",
+      "reason": "trailing_stop",
+      "regime": "trending_up",
+      "confidence": 0.7275,
+      "pnl_pct": -0.092,
+      "note": "Low confidence entry",
+      "date": "2026-07-03T21:30:24.517540"
+    },
+    {
+      "symbol": "SHIBUSDT",
+      "reason": "trailing_stop",
+      "regime": "expansion",
+      "confidence": 0.699,
+      "pnl_pct": -0.05,
+      "note": "Low confidence entry",
+      "date": "2026-07-04T05:25:16.824074"
+    }
+  ],
+  "refinement_history": []
+}
