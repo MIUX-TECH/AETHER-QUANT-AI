@@ -63,6 +63,17 @@ def boot_system():
     state = load_state()
     state.setdefault("system", {})["mode"] = mode
     state.setdefault("system", {})["status"] = "starting"
+    state.setdefault("system", {})["auto_enabled"] = True
+    state.setdefault("health", {
+        "api_connected": False,
+        "data_feed_ok": False,
+        "execution_ok": True,
+        "memory_ok": True,
+        "last_heartbeat": None,
+        "last_error": None,
+        "last_error_at": None,
+    })
+    state.setdefault("portfolio", {})
     save_state(state)
 
     # API credentials
@@ -113,8 +124,6 @@ def boot_system():
     state["health"]["last_heartbeat"] = __import__("datetime").datetime.utcnow().isoformat()
     state["system"]["status"] = "running"
     state["system"]["auto_enabled"] = True  # Ensure auto/scheduler mode active in paper
-    state.setdefault("health", {})["last_error"] = None
-    state.setdefault("health", {})["last_error_at"] = None
     save_state(state)
 
     scheduler.start()
