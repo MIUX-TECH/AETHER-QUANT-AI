@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: aether-quant-ai-backend
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: TRADING_MODE
+        value: paper
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_MODEL
+        value: qwen/qwen3.6-27b
+      - key: LOG_LEVEL
+        value: INFO
