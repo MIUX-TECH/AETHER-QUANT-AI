@@ -73,7 +73,32 @@ def boot_system():
         "last_error": None,
         "last_error_at": None,
     })
-    state.setdefault("portfolio", {})
+    
+    # Complete default portfolio state
+    default_portfolio = {
+        "total_equity": 1000.0,
+        "spot_equity": 900.0,
+        "futures_equity": 100.0,
+        "cash_reserve": 50.0,
+        "unrealized_pnl": 0.0,
+        "realized_pnl_today": 0.0,
+        "daily_starting_equity": 1000.0,
+        "drawdown_from_peak_pct": 0.0,
+        "peak_equity": 1000.0,
+        "mode": "normal",
+        "last_rebalance": None,
+        "last_drift_check": None,
+    }
+    for k, v in default_portfolio.items():
+        state.setdefault("portfolio", {}).setdefault(k, v)
+
+    state.setdefault("positions", {"spot": {}, "futures": {}})
+    state.setdefault("scanner", {
+        "dominant_regime": "ranging",
+        "last_scan": None,
+        "symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT", "BNBUSDT", "PEPEUSDT", "SHIBUSDT", "DOGEUSDT", "TRXUSDT", "BONKUSDT", "FLOKIUSDT"],
+        "results": {}
+    })
     save_state(state)
 
     # API credentials
