@@ -403,7 +403,7 @@ class TradingOrchestrator:
         risk_summary = self.risk_manager.get_risk_summary(self.state)
 
         # Update exposure
-        self.state["risk"]["total_exposure_pct"] = self.portfolio_manager.get_total_exposure_pct()
+        self.state.setdefault("risk", {})["total_exposure_pct"] = self.portfolio_manager.get_total_exposure_pct()
         portfolio["unrealized_pnl"] = self.portfolio_manager.get_total_unrealized_pnl()
 
         return {

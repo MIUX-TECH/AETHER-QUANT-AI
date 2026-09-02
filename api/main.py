@@ -93,6 +93,15 @@ def boot_system():
         state.setdefault("portfolio", {}).setdefault(k, v)
 
     state.setdefault("positions", {"spot": {}, "futures": {}})
+    state.setdefault("risk", {
+        "max_risk_per_trade_pct": 0.02,
+        "max_portfolio_heat_pct": 0.06,
+        "max_drawdown_limit_pct": 0.15,
+        "daily_loss_limit_pct": 0.05,
+        "kill_switch": False,
+        "safe_mode": False,
+        "total_exposure_pct": 0.0,
+    })
     state.setdefault("scanner", {
         "dominant_regime": "ranging",
         "last_scan": None,
