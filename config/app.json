@@ -9,9 +9,9 @@
     "timezone": "UTC"
   },
   "binance": {
-    "testnet": true,
-    "base_url": "https://testnet.binance.vision",
-    "futures_base_url": "https://testnet.binancefuture.com",
+    "testnet": false,
+    "base_url": "https://api.binance.com",
+    "futures_base_url": "https://fapi.binance.com",
     "recv_window": 5000,
     "max_retries": 3,
     "retry_delay": 2
