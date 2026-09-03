@@ -39,6 +39,20 @@ class BinanceExecutor:
         self.session.headers.update({"X-MBX-APIKEY": api_key})
         self.max_retries = 3
         self.retry_delay = 2
+        self.time_offset = 0
+        self._sync_time()
+
+    def _sync_time(self):
+        """Sync millisecond time offset with Binance server time."""
+        try:
+            r = requests.get(f"{self.base_url}/api/v3/time", timeout=3)
+            if r.status_code == 200:
+                server_time = r.json().get("serverTime", 0)
+                local_time = int(time.time() * 1000)
+                self.time_offset = server_time - local_time
+                logger.info(f"Binance time synced. Offset: {self.time_offset}ms")
+        except Exception as e:
+            logger.warning(f"Binance time sync failed: {e}")
 
     # ============================================================
     # SPOT ORDERS
@@ -268,12 +282,13 @@ class BinanceExecutor:
         import urllib.parse
         p = dict(params or {})
         p.setdefault("recvWindow", 60000)
-        p["timestamp"] = int(time.time() * 1000)
+        p["timestamp"] = int(time.time() * 1000) + self.time_offset
         p.pop("signature", None)
 
         query = urllib.parse.urlencode(sorted(p.items()))
         sig = hmac.new(self.secret_key.encode("utf-8"), query.encode("utf-8"), hashlib.sha256).hexdigest()
         full_url = f"{url}?{query}&signature={sig}"
+        self.session.headers["X-MBX-APIKEY"] = self.api_key
 
         for attempt in range(self.max_retries):
             try:
