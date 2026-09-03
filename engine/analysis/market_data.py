@@ -16,10 +16,10 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-BINANCE_BASE = "https://api.binance.com"
-BINANCE_TESTNET = os.getenv("BINANCE_TESTNET_BASE_URL", "https://aether-quant-ai.vercel.app/binance-spot")
+BINANCE_BASE = "https://data-api.binance.vision"
+BINANCE_TESTNET = "https://data-api.binance.vision"
 FUTURES_BASE = "https://fapi.binance.com"
-FUTURES_TESTNET = os.getenv("BINANCE_FUTURES_TESTNET_BASE_URL", "https://aether-quant-ai.vercel.app/binance-futures")
+FUTURES_TESTNET = "https://testnet.binancefuture.com"
 
 TIMEFRAME_MAP = {
     "1m": "1m", "3m": "3m", "5m": "5m", "15m": "15m", "30m": "30m",

@@ -18,9 +18,9 @@ import os
 logger = logging.getLogger(__name__)
 
 BINANCE_BASE = "https://api.binance.com"
-BINANCE_TESTNET = os.getenv("BINANCE_TESTNET_BASE_URL", "https://aether-quant-ai.vercel.app/binance-spot")
+BINANCE_TESTNET = "https://testnet.binance.vision"
 FUTURES_BASE = "https://fapi.binance.com"
-FUTURES_TESTNET = os.getenv("BINANCE_FUTURES_TESTNET_BASE_URL", "https://aether-quant-ai.vercel.app/binance-futures")
+FUTURES_TESTNET = "https://testnet.binancefuture.com"
 
 # Paper trading fee simulation
 TAKER_FEE = 0.001  # 0.1%
