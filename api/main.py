@@ -267,6 +267,9 @@ def get_wallet():
         free = float(b.get("free", 0))
         locked = float(b.get("locked", 0))
         total = float(b.get("total", free + locked))
+        if total <= 0.00001:
+            continue
+
         price = 1.0
         if asset in ["USDT", "USD", "USDC", "FDUSD", "BUSD"]:
             price = 1.0
@@ -276,10 +279,11 @@ def get_wallet():
                 price = float(scan_res[sym]["price"])
             else:
                 try:
-                    t = orchestrator.market_data.get_ticker(sym)
-                    price = float(t.get("lastPrice", 0)) if t else 0
+                    r = requests.get(f"https://data-api.binance.vision/api/v3/ticker/price?symbol={sym}", timeout=3)
+                    if r.status_code == 200:
+                        price = float(r.json().get("price", 0))
                 except Exception:
-                    price = 0
+                    price = 0.0
         
         usd_val = total * price if price > 0 else 0
         total_usd += usd_val
