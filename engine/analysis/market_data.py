@@ -61,23 +61,30 @@ class MarketDataService:
             r = self.session.get(url, params=params, timeout=timeout)
             r.raise_for_status()
             return r.json()
-        except requests.exceptions.ConnectionError:
-            logger.warning(f"Connection error fetching {url}. Using public API fallback.")
-            return self._get_public_fallback(url, params, timeout)
         except Exception as e:
-            logger.error(f"GET {url} failed: {e}")
-            return None
+            logger.warning(f"Primary endpoint {url} failed ({e}). Trying data-api.binance.vision fallback...")
+            return self._get_public_fallback(url, params, timeout)
 
     def _get_public_fallback(self, url: str, params: dict, timeout: int) -> Optional[dict]:
-        """Fallback to public Binance API if testnet unreachable."""
-        try:
-            public_url = url.replace(BINANCE_TESTNET, BINANCE_BASE)
-            r = self.session.get(public_url, params=params, timeout=timeout)
-            r.raise_for_status()
-            return r.json()
-        except Exception as e:
-            logger.error(f"Public fallback also failed: {e}")
-            return None
+        """Fallback to data-api.binance.vision and alternative public Binance endpoints."""
+        endpoints = [
+            "https://data-api.binance.vision",
+            "https://api1.binance.com",
+            "https://api2.binance.com",
+            "https://api3.binance.com",
+            "https://api.binance.com"
+        ]
+        path = url.split(".com")[-1].split(".vision")[-1]
+        for base in endpoints:
+            try:
+                fallback_url = f"{base}{path}"
+                r = requests.get(fallback_url, params=params, timeout=timeout)
+                if r.status_code == 200:
+                    return r.json()
+            except Exception:
+                continue
+        logger.error(f"All fallback endpoints failed for path {path}")
+        return None
 
     def _cached(self, key: str, fetch_fn, ttl: int = None):
         ttl = ttl or self._cache_ttl
