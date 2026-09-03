@@ -17,26 +17,40 @@ interface StatCardProps {
 }
 
 export function StatCard({ label, value, sub, change, accent, warn, danger, icon, mono }: StatCardProps) {
-  const border = accent ? 'card card-cyan' : warn ? 'card' : danger ? 'card' : 'card'
-  const valueColor = accent ? 'accent' : warn ? 'warn' : danger ? 'bear' : ''
+  const cardBorder = accent ? 'card card-lime' : warn ? 'card' : danger ? 'card' : 'card'
+  const valueColor = accent ? 'accent' : warn ? 'warn' : danger ? 'bear' : 'var(--text-primary)'
   return (
-    <div className={`${border} p-2.5`}>
-      <div className="flex items-center justify-between gap-1 mb-1">
-        <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+    <div className={`${cardBorder}`} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+      <div className="flex items-center justify-between gap-1.5 mb-1.5">
+        <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
           {label}
         </span>
-        {icon && <span style={{ color: 'var(--text-muted)', opacity: 0.8 }}>{icon}</span>}
+        {icon && (
+          <div style={{
+            width: 20, height: 20, borderRadius: 4,
+            background: accent ? 'var(--accent-glow)' : 'rgba(255,255,255,0.04)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: accent ? 'var(--accent)' : 'var(--text-muted)'
+          }}>
+            {icon}
+          </div>
+        )}
       </div>
-      <div className={`${valueColor} mono`} style={{
-        fontSize: 15,
+
+      <div style={{
+        fontSize: 17,
+        fontFamily: mono ? 'var(--font-mono)' : 'var(--font-display)',
         fontWeight: 700,
-        lineHeight: 1.15,
+        lineHeight: 1.2,
+        color: valueColor,
+        letterSpacing: '-0.02em',
       }}>
         {value}
       </div>
+
       {(sub || change !== undefined) && (
-        <div className="flex items-center gap-1.5 mt-1 truncate">
-          {sub && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{sub}</span>}
+        <div className="flex items-center gap-1.5 mt-2 pt-1.5 truncate" style={{ borderTop: '1px solid rgba(255,255,255,0.04)' }}>
+          {sub && <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{sub}</span>}
           {change !== undefined && <ChangeTag value={change} />}
         </div>
       )}

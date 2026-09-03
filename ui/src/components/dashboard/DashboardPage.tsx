@@ -147,7 +147,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Qwen AI Cognitive Stream */}
-      <div className="card p-2.5 mb-2.5" style={{ background: 'linear-gradient(135deg, rgba(0, 240, 255, 0.03) 0%, rgba(163, 230, 53, 0.02) 100%)', borderColor: 'rgba(0, 240, 255, 0.2)' }}>
+      <div className="card p-2.5 mb-2.5" style={{ background: 'linear-gradient(135deg, rgba(163, 230, 53, 0.05) 0%, rgba(20, 24, 32, 0.95) 100%)', borderColor: 'rgba(163, 230, 53, 0.25)' }}>
         <div className="flex items-center gap-1.5 mb-1">
           <Brain size={13} style={{ color: 'var(--accent)' }} />
           <span style={{ fontSize: 10, fontWeight: 700, fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', color: 'var(--accent)' }}>
