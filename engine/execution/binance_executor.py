@@ -222,7 +222,8 @@ class BinanceExecutor:
         return self._signed_delete(f"{base}{endpoint}", params)
 
     def _sign(self, params: dict) -> str:
-        query = "&".join(f"{k}={v}" for k, v in params.items())
+        params.setdefault("recvWindow", 60000)
+        query = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
         return hmac.new(self.secret_key.encode(), query.encode(), hashlib.sha256).hexdigest()
 
     def _signed_post(self, url: str, params: dict, futures: bool = False) -> Dict:
