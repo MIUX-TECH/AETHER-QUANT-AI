@@ -117,6 +117,17 @@ class MarketDataService:
             return None
         return self._cached(cache_key, fetch, ttl=5)
 
+    def get_all_prices(self) -> Dict[str, float]:
+        """Fetch all current market prices with caching."""
+        cache_key = "all_ticker_prices"
+        def fetch():
+            url = f"{self.base_url}/api/v3/ticker/price"
+            data = self._get(url)
+            if data and isinstance(data, list):
+                return {p["symbol"]: float(p["price"]) for p in data if "symbol" in p and "price" in p}
+            return {}
+        return self._cached(cache_key, fetch, ttl=10) or {}
+
     def get_klines(self, symbol: str, interval: str, limit: int = 200) -> Optional[List[Dict]]:
         """
         Fetch OHLCV candlestick data.

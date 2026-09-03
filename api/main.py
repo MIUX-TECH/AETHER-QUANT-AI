@@ -377,6 +377,11 @@ def get_wallet():
                 price = 0.0
 
         usd_val = total * price if price > 0 else 0
+        
+        # Skip zero-value airdrop dust
+        if usd_val < 0.0001 and underlying not in ["USDT", "USD", "BTC", "BNB", "ETH", "SOL", "PEPE", "SHIB"]:
+            continue
+
         if is_earn:
             earn_usd += usd_val
         else:
