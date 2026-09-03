@@ -111,9 +111,9 @@ def boot_system():
     save_state(state)
 
     # API credentials
-    api_key = os.getenv("BINANCE_TESTNET_API_KEY" if app_cfg.get("binance", {}).get("testnet") else "BINANCE_API_KEY", "")
-    secret_key = os.getenv("BINANCE_TESTNET_SECRET_KEY" if app_cfg.get("binance", {}).get("testnet") else "BINANCE_SECRET_KEY", "")
     testnet = app_cfg.get("binance", {}).get("testnet", True)
+    api_key = os.getenv("BINANCE_TESTNET_API_KEY") or os.getenv("BINANCE_API_KEY") or ""
+    secret_key = os.getenv("BINANCE_TESTNET_SECRET_KEY") or os.getenv("BINANCE_SECRET_KEY") or ""
 
     # Initialize services
     market_data = MarketDataService(api_key, secret_key, testnet, mode)
@@ -263,12 +263,19 @@ def get_wallet():
     items = []
     total_usd = 0.0
     
+    PRIMARY_ASSETS = ["USDT", "USD", "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "PEPE", "SHIB", "NEAR", "AVAX", "TRX", "BONK", "FLOKI"]
+
     for asset, b in balances.items():
         free = float(b.get("free", 0))
         locked = float(b.get("locked", 0))
         total = float(b.get("total", free + locked))
         if total <= 0.00001:
             continue
+
+        # Skip obscure non-crypto testnet tokens unless they are primary
+        if asset not in PRIMARY_ASSETS and total > 1000 and not asset.endswith("USDT"):
+            if not any(asset.startswith(p) for p in ["USDT", "USD", "BTC", "ETH", "SOL", "BNB"]):
+                continue
 
         price = 1.0
         if asset in ["USDT", "USD", "USDC", "FDUSD", "BUSD"]:
@@ -279,24 +286,25 @@ def get_wallet():
                 price = float(scan_res[sym]["price"])
             else:
                 try:
-                    r = requests.get(f"https://data-api.binance.vision/api/v3/ticker/price?symbol={sym}", timeout=3)
+                    r = requests.get(f"https://data-api.binance.vision/api/v3/ticker/price?symbol={sym}", timeout=2)
                     if r.status_code == 200:
                         price = float(r.json().get("price", 0))
                 except Exception:
                     price = 0.0
-        
+
         usd_val = total * price if price > 0 else 0
         total_usd += usd_val
         items.append({
             "asset": asset,
-            "free": free,
-            "locked": locked,
-            "total": total,
+            "free": round(free, 6) if free < 1 else round(free, 4),
+            "locked": round(locked, 4),
+            "total": round(total, 6) if total < 1 else round(total, 4),
             "price": price,
             "usd_value": round(usd_val, 2)
         })
-    
-    items.sort(key=lambda x: x["usd_value"], reverse=True)
+
+    # Sort primary assets first, then by USD value
+    items.sort(key=lambda x: (x["asset"] not in PRIMARY_ASSETS, -x["usd_value"]))
     return {
         "mode": state.get("system", {}).get("mode", "paper"),
         "total_equity_usd": round(total_usd, 2) if total_usd > 0 else 1000.0,
