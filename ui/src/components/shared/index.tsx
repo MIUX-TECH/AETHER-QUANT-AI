@@ -17,28 +17,26 @@ interface StatCardProps {
 }
 
 export function StatCard({ label, value, sub, change, accent, warn, danger, icon, mono }: StatCardProps) {
-  const border = accent ? 'card card-lime' : warn ? 'card' : danger ? 'card' : 'card'
-  const valueColor = accent ? 'lime' : warn ? 'warn' : danger ? 'bear' : ''
+  const border = accent ? 'card card-cyan' : warn ? 'card' : danger ? 'card' : 'card'
+  const valueColor = accent ? 'accent' : warn ? 'warn' : danger ? 'bear' : ''
   return (
-    <div className={`${border} p-3`}>
+    <div className={`${border} p-2.5`}>
       <div className="flex items-center justify-between gap-1 mb-1">
-        <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+        <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
           {label}
         </span>
-        {icon && <span style={{ color: 'var(--text-muted)', opacity: 0.7 }}>{icon}</span>}
+        {icon && <span style={{ color: 'var(--text-muted)', opacity: 0.8 }}>{icon}</span>}
       </div>
-      <div className={`${valueColor}`} style={{
-        fontSize: 18,
-        fontFamily: mono ? 'var(--font-mono)' : 'var(--font-display)',
+      <div className={`${valueColor} mono`} style={{
+        fontSize: 15,
         fontWeight: 700,
         lineHeight: 1.15,
-        letterSpacing: '-0.02em',
       }}>
         {value}
       </div>
       {(sub || change !== undefined) && (
-        <div className="flex items-center gap-1.5 mt-1">
-          {sub && <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{sub}</span>}
+        <div className="flex items-center gap-1.5 mt-1 truncate">
+          {sub && <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{sub}</span>}
           {change !== undefined && <ChangeTag value={change} />}
         </div>
       )}

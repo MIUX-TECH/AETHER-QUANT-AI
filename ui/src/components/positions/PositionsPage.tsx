@@ -1,15 +1,15 @@
 // src/components/positions/PositionsPage.tsx
-
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useStore } from '../../store/useStore'
-import { SectionHeader, PnlDisplay, SignalBadge, RegimePill, ConfidenceBar, fmtPrice, fmtTime, EmptyState } from '../shared'
-import { Activity, TrendingUp, TrendingDown, RefreshCw, AlertTriangle } from 'lucide-react'
+import { SectionHeader, PnlDisplay, fmtPrice, fmt, EmptyState, TestnetWalletWidget } from '../shared'
+import { Activity, TrendingUp, TrendingDown, RefreshCw, AlertTriangle, Layers, Wallet, ArrowUpRight } from 'lucide-react'
 
 export default function PositionsPage() {
-  const { positions, refresh, loading } = useStore()
+  const { positions, wallet, refresh, loading, setActiveTab } = useStore()
   const spot = positions?.spot || []
   const futures = positions?.futures || []
   const total = spot.length + futures.length
+  const holdings = wallet?.assets?.filter(a => !['USDT', 'USD', 'USDC'].includes(a.asset) && a.total > 0) || []
 
   useEffect(() => {
     refresh()
@@ -19,30 +19,26 @@ export default function PositionsPage() {
 
   return (
     <div className="page">
-      <div className="flex items-center justify-between mb-5">
+      <TestnetWalletWidget />
+
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>Posisi Aktif</h1>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-            {total} open · spot: {spot.length} · futures: {futures.length}
+          <h1 style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em' }}>Posisi & Kepemilikan Terbuka</h1>
+          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
+            {total} Posisi Bot Aktif · {holdings.length} Aset Spot Terdaftar
           </p>
         </div>
-        <button className="btn btn-ghost btn-sm" onClick={refresh}>
-          <RefreshCw size={12} />
+        <button className="btn btn-ghost btn-xs" onClick={refresh} disabled={loading}>
+          <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
+          <span>Segarkan</span>
         </button>
       </div>
 
-      {total === 0 && (
-        <EmptyState
-          icon={<Activity size={32} />}
-          message="No active positions. System will enter when conditions are met."
-        />
-      )}
-
-      {/* Spot positions */}
+      {/* Active Spot Bot Positions */}
       {spot.length > 0 && (
-        <div className="mb-4">
-          <SectionHeader title="Posisi Spot" subtitle={`${spot.length} aktif`} />
-          <div className="flex flex-col gap-3">
+        <div className="mb-3">
+          <SectionHeader title="Posisi Bot Spot" subtitle={`${spot.length} posisi dengan proteksi TP/SL aktif`} />
+          <div className="flex flex-col gap-2">
             {spot.map((pos: any, i: number) => (
               <PositionCard key={i} position={pos} type="spot" />
             ))}
@@ -50,88 +46,102 @@ export default function PositionsPage() {
         </div>
       )}
 
-      {/* Futures positions */}
+      {/* Active Futures Bot Positions */}
       {futures.length > 0 && (
-        <div>
-          <SectionHeader title="Posisi Futures" subtitle={`${futures.length} aktif · berlever`} />
-          <div className="flex flex-col gap-3">
+        <div className="mb-3">
+          <SectionHeader title="Posisi Bot Futures" subtitle={`${futures.length} kontrak leverage aktif`} />
+          <div className="flex flex-col gap-2">
             {futures.map((pos: any, i: number) => (
               <PositionCard key={i} position={pos} type="futures" />
             ))}
           </div>
         </div>
       )}
+
+      {/* Spot Asset Holdings Section */}
+      {holdings.length > 0 && (
+        <div className="card p-2.5 mb-3">
+          <div className="flex items-center justify-between mb-2">
+            <SectionHeader
+              title={`Saldo Aset Spot Testnet (${holdings.length})`}
+              subtitle="Koin kripto yang saat ini tersimpan di akun Spot Binance Testnet"
+            />
+            <button className="btn btn-ghost btn-xs" onClick={() => setActiveTab('portfolio')} style={{ fontSize: 10 }}>
+              Kelola Portofolio <ArrowUpRight size={10} />
+            </button>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 6 }}>
+            {holdings.map((h: any, i: number) => (
+              <div key={i} className="p-2" style={{ background: 'var(--bg-deep)', borderRadius: 6, border: '1px solid var(--bg-border)' }}>
+                <div className="flex items-center justify-between mb-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="mono" style={{ fontSize: 12, fontWeight: 700 }}>{h.asset}</span>
+                    <span className="badge badge-bull" style={{ fontSize: 8 }}>SPOT HOLDING</span>
+                  </div>
+                  <span className="bull mono" style={{ fontSize: 12, fontWeight: 700 }}>
+                    ${(h.usd_value || (h.total * h.price)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between mono" style={{ fontSize: 9, color: 'var(--text-muted)' }}>
+                  <span>Kuantitas: {Number(h.total || 0).toFixed(4)} {h.asset}</span>
+                  <span>Harga: ${Number(h.price || 0).toFixed(2)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {total === 0 && holdings.length === 0 && (
+        <EmptyState
+          icon={<Activity size={28} />}
+          message="Tidak ada posisi terbuka. Bot akan membuka order saat sinyal teknikal terkonfirmasi."
+        />
+      )}
     </div>
   )
 }
 
 function PositionCard({ position: pos, type }: { position: any; type: string }) {
-  const isBull = pos.side === 'BUY'
+  const isBull = pos.side === 'BUY' || pos.side === 'LONG'
   const pnl = pos.unrealized_pnl || 0
   const pnlPct = pos.unrealized_pnl_pct || 0
-  const isProfit = pnl >= 0
-
-  const riskToSL = pos.entry_price && pos.sl_price
-    ? ((pos.entry_price - pos.sl_price) / pos.entry_price * 100).toFixed(2)
-    : null
-  const toTP = pos.entry_price && pos.tp_price
-    ? ((pos.tp_price - pos.entry_price) / pos.entry_price * 100).toFixed(2)
-    : null
 
   return (
-    <div className="card" style={{ overflow: 'hidden', borderLeft: `3px solid ${isBull ? 'var(--bull)' : 'var(--bear)'}` }}>
-      <div className="p-4">
-        {/* Header row */}
-        <div className="flex items-center justify-between gap-3 mb-3">
-          <div className="flex items-center gap-2">
-            {isBull
-              ? <TrendingUp size={14} style={{ color: 'var(--bull)' }} />
-              : <TrendingDown size={14} style={{ color: 'var(--bear)' }} />
-            }
-            <span style={{ fontSize: 15, fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.02em' }}>
-              {pos.symbol?.replace('USDT', '')}
-            </span>
-            <span className={`badge ${isBull ? 'badge-bull' : 'badge-bear'}`}>
-              {isBull ? 'LONG' : 'SHORT'}
-            </span>
-            {type === 'futures' && (
-              <span className="badge badge-warn">{pos.leverage}x</span>
-            )}
-            {pos.partial_tp_taken && (
-              <span className="badge badge-lime">½TP</span>
-            )}
-          </div>
-          <PnlDisplay value={pnl} pct={pnlPct} size="md" />
+    <div className="card p-2.5" style={{ overflow: 'hidden', borderLeft: `3px solid ${isBull ? 'var(--bull)' : 'var(--bear)'}` }}>
+      <div className="flex items-center justify-between gap-2 mb-2">
+        <div className="flex items-center gap-1.5">
+          {isBull
+            ? <TrendingUp size={12} style={{ color: 'var(--bull)' }} />
+            : <TrendingDown size={12} style={{ color: 'var(--bear)' }} />
+          }
+          <span className="mono" style={{ fontSize: 13, fontWeight: 700 }}>
+            {pos.symbol}
+          </span>
+          <span className={`badge ${isBull ? 'badge-bull' : 'badge-bear'}`} style={{ fontSize: 8 }}>
+            {isBull ? 'LONG / BELI' : 'SHORT / JUAL'}
+          </span>
+          {type === 'futures' && (
+            <span className="badge badge-warn" style={{ fontSize: 8 }}>{pos.leverage}x</span>
+          )}
         </div>
-
-        {/* Price levels grid */}
-        <div className="grid-4 gap-2 mb-3">
-          <PriceBox label="Harga Masuk" value={fmtPrice(pos.entry_price)} />
-          <PriceBox label="Saat Ini" value={fmtPrice(pos.current_price)} highlight />
-          <PriceBox label="Stop Loss" value={fmtPrice(pos.sl_price)} danger />
-          <PriceBox label="Take Profit" value={fmtPrice(pos.tp_price)} bull />
-        </div>
-
-        {/* Trailing stop */}
-        {pos.trailing_stop_price && (
-          <div className="flex items-center gap-2 mb-3" style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--warn)' }}>
-            <AlertTriangle size={11} />
-            Trailing Stop: {fmtPrice(pos.trailing_stop_price)}
-          </div>
-        )}
-
-        {/* Details */}
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-          <Detail label="Ukuran" value={`$${(pos.position_usdt || 0).toFixed(2)}`} />
-          <Detail label="Kuantitas" value={(pos.qty || 0).toFixed(6)} />
-          {riskToSL && <Detail label="Risiko SL" value={`${riskToSL}%`} danger />}
-          {toTP && <Detail label="ke TP" value={`${toTP}%`} bull />}
-          <Detail label="Strategi" value={pos.strategy || '—'} />
-          <Detail label="Regim" value={pos.regime || '—'} />
-          <Detail label="Dibuka" value={fmtTime(pos.opened_at || '')} />
-          {pos.confidence && <Detail label="Keyakinan" value={`${(pos.confidence * 100).toFixed(0)}%`} />}
-        </div>
+        <PnlDisplay value={pnl} pct={pnlPct} size="sm" />
       </div>
+
+      <div className="grid-4 gap-1.5 mb-1.5">
+        <PriceBox label="Harga Masuk" value={`$${fmtPrice(pos.entry_price)}`} />
+        <PriceBox label="Harga Saat Ini" value={`$${fmtPrice(pos.current_price || pos.entry_price)}`} highlight />
+        <PriceBox label="Stop Loss" value={`$${fmtPrice(pos.sl_price)}`} danger />
+        <PriceBox label="Take Profit" value={`$${fmtPrice(pos.tp_price)}`} bull />
+      </div>
+
+      {pos.trailing_stop_price && (
+        <div className="flex items-center gap-1 mono" style={{ fontSize: 9, color: 'var(--warn)' }}>
+          <AlertTriangle size={10} />
+          Trailing Stop Aktif: ${fmtPrice(pos.trailing_stop_price)}
+        </div>
+      )}
     </div>
   )
 }
@@ -139,30 +149,15 @@ function PositionCard({ position: pos, type }: { position: any; type: string }) 
 function PriceBox({ label, value, highlight, danger, bull }: {
   label: string; value: string; highlight?: boolean; danger?: boolean; bull?: boolean
 }) {
+  const color = highlight ? 'var(--accent)' : danger ? 'var(--bear)' : bull ? 'var(--bull)' : 'var(--text-primary)'
   return (
-    <div style={{
-      background: 'var(--bg-deep)', borderRadius: 'var(--radius-sm)',
-      padding: '6px 10px', border: `1px solid ${danger ? 'rgba(239,68,68,0.2)' : bull ? 'rgba(34,197,94,0.15)' : 'var(--bg-border)'}`,
-    }}>
-      <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 2 }}>{label}</div>
-      <div style={{
-        fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 500,
-        color: danger ? 'var(--bear)' : bull ? 'var(--bull)' : highlight ? 'var(--accent-lime)' : 'var(--text-primary)',
-      }}>{value}</div>
-    </div>
-  )
-}
-
-function Detail({ label, value, danger, bull }: {
-  label: string; value: string; danger?: boolean; bull?: boolean
-}) {
-  return (
-    <div>
-      <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{label}: </span>
-      <span style={{
-        fontSize: 11, fontFamily: 'var(--font-mono)',
-        color: danger ? 'var(--bear)' : bull ? 'var(--bull)' : 'var(--text-secondary)',
-      }}>{value}</span>
+    <div style={{ background: 'var(--bg-deep)', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--bg-border)' }}>
+      <div style={{ fontSize: 8, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
+        {label}
+      </div>
+      <div className="mono" style={{ fontSize: 10, fontWeight: 700, color, marginTop: 1 }}>
+        {value}
+      </div>
     </div>
   )
 }
