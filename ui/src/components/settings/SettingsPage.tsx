@@ -5,9 +5,10 @@ import { SectionHeader, fmtPct } from '../shared'
 import {
   Settings, Key, Shield, Sliders, ToggleLeft, ToggleRight,
   Save, CheckCircle2, AlertTriangle, RefreshCw, Zap, Globe,
-  Layers, Brain, Clock, Code, TrendingUp, Target, Database
+  Layers, Brain, Clock, Code, TrendingUp, Target, Database,
+  Lock, Unlock, ShieldCheck
 } from 'lucide-react'
-import { api } from '../../utils/api'
+import { api, getAdminToken, setAdminToken } from '../../utils/api'
 
 export default function SettingsPage() {
   const { system, risk, scanner, switchTradingMode, control, refresh, loading } = useStore()
@@ -18,14 +19,20 @@ export default function SettingsPage() {
   const [rawAppJSON, setRawAppJSON] = useState('')
   const [saveStatus, setSaveStatus] = useState<string | null>(null)
 
+  // Master Token Security state
+  const [adminToken, setAdminTokenInput] = useState(getAdminToken())
+  const [isAuthVerified, setIsAuthVerified] = useState(false)
+  const [authChecking, setAuthChecking] = useState(false)
+
   // Mode state
   const [currentMode, setCurrentMode] = useState(system?.mode || 'testnet')
   const [apiKey, setApiKey] = useState('')
   const [secretKey, setSecretKey] = useState('')
   const [symbolsText, setSymbolsText] = useState((scanner?.symbols || []).join(', '))
 
-  // Load backend configurations
+  // Load backend configurations & verify token
   useEffect(() => {
+    checkTokenAuth(adminToken)
     api.getConfig().then(cfg => {
       if (cfg) {
         setConfig(cfg)
@@ -34,6 +41,33 @@ export default function SettingsPage() {
       }
     }).catch(() => null)
   }, [])
+
+  const checkTokenAuth = async (t: string) => {
+    setAuthChecking(true)
+    try {
+      await api.verifyAdminToken(t)
+      setIsAuthVerified(true)
+      setAdminToken(t)
+    } catch {
+      setIsAuthVerified(false)
+    } finally {
+      setAuthChecking(false)
+    }
+  }
+
+  const handleSaveAdminToken = async () => {
+    setSaveStatus('Memverifikasi Master Token...')
+    try {
+      await api.verifyAdminToken(adminToken)
+      setIsAuthVerified(true)
+      setAdminToken(adminToken)
+      setSaveStatus('🔒 Master Token Valid & Tersimpan!')
+      setTimeout(() => setSaveStatus(null), 3000)
+    } catch (e: any) {
+      setIsAuthVerified(false)
+      setSaveStatus(`❌ Token Salah: ${e.message}`)
+    }
+  }
 
   const handleSaveMode = async (mode: string) => {
     setCurrentMode(mode)
@@ -77,13 +111,13 @@ export default function SettingsPage() {
   return (
     <div className="page">
       {/* Page Header */}
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+      <div className="flex items-center justify-between mb-2.5 flex-wrap gap-2">
         <div>
-          <h1 style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Settings size={18} style={{ color: 'var(--accent)' }} /> Pusat Konfigurasi & Parameter Strategi
+          <h1 style={{ fontSize: 17, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Settings size={17} style={{ color: 'var(--accent)' }} /> Pusat Konfigurasi & Keamanan Sistem
           </h1>
           <p style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
-            Kontrol Penuh Parameter Kuantitatif · Bobot Skoring · Indikator · Manajemen Risiko · Mode Trading
+            Master Token Guard · Manajemen Risiko (Auto-Kill 3%) · Kredensial Binance Mainnet
           </p>
         </div>
         {saveStatus && (
@@ -91,11 +125,56 @@ export default function SettingsPage() {
         )}
       </div>
 
+      {/* MASTER SECURITY GUARD LOCK */}
+      <div className={`card ${isAuthVerified ? 'card-lime' : ''} p-2.5 mb-3`} style={{ borderColor: isAuthVerified ? 'rgba(163, 230, 53, 0.35)' : 'var(--warn)' }}>
+        <div className="flex items-center justify-between flex-wrap gap-2">
+          <div className="flex items-center gap-2">
+            {isAuthVerified ? (
+              <ShieldCheck size={16} style={{ color: 'var(--bull)' }} />
+            ) : (
+              <Lock size={16} style={{ color: 'var(--warn)' }} />
+            )}
+            <div>
+              <div className="flex items-center gap-1.5">
+                <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>
+                  MASTER ADMIN TOKEN GUARD
+                </span>
+                <span className={`badge ${isAuthVerified ? 'badge-bull' : 'badge-warn'}`} style={{ fontSize: 8 }}>
+                  {isAuthVerified ? '🔒 TEROTENTIKASI (AKSES PENUH)' : '⚠️ TERKUNCI (HANYA BACA)'}
+                </span>
+              </div>
+              <p style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                Token rahasia untuk otentikasi eksekusi order, pergantian mode, dan modifikasi parameter trading.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-1.5 w-full md:w-auto">
+            <input
+              type="password"
+              className="p-1.5 rounded font-mono"
+              style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11, minWidth: 200 }}
+              placeholder="Masukkan Master Token Admin..."
+              value={adminToken}
+              onChange={e => setAdminTokenInput(e.target.value)}
+            />
+            <button
+              className="btn btn-lime btn-xs"
+              onClick={handleSaveAdminToken}
+              disabled={authChecking}
+              style={{ fontSize: 10, padding: '4px 10px' }}
+            >
+              {authChecking ? 'Memeriksa...' : 'Buka Kunci'}
+            </button>
+          </div>
+        </div>
+      </div>
+
       {/* Navigation Sub-Tabs */}
       <div className="flex items-center gap-1.5 mb-3 overflow-x-auto pb-1.5 border-b border-border">
         {[
           { id: 'mode', label: '1. Mode & Kunci API', icon: Key },
-          { id: 'risk', label: '2. Manajemen Risiko', icon: Shield },
+          { id: 'risk', label: '2. Manajemen Risiko (3% Limit)', icon: Shield },
           { id: 'scoring', label: '3. Bobot Skoring & Ambang', icon: Target },
           { id: 'strategy', label: '4. Parameter Spot & Futures', icon: TrendingUp },
           { id: 'indicators', label: '5. Indikator & Regime', icon: Sliders },
@@ -216,18 +295,18 @@ export default function SettingsPage() {
       {/* TAB 2: Risk Management */}
       {activeTab === 'risk' && (
         <div className="card p-3">
-          <SectionHeader title="Aturan & Batas Manajemen Risiko" subtitle="Parameter proteksi modal dan pembatasan eksposur" />
+          <SectionHeader title="Aturan & Batas Manajemen Risiko" subtitle="Parameter proteksi modal ketat dan Circuit Breaker Drawdown 3%" />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 8 }}>
             {[
-              { label: 'Batas Risiko Maks per Trade', val: `${(Number(tCfg.risk?.max_risk_per_trade_pct || 0.02) * 100).toFixed(1)}%`, desc: 'Batas kerugian maksimal per posisi' },
-              { label: 'Batas Eksposur Portofolio', val: `${(Number(tCfg.risk?.max_portfolio_exposure_pct || 0.85) * 100).toFixed(0)}%`, desc: 'Maks total modal dalam pasar' },
-              { label: 'Batas Eksposur per Koin', val: `${(Number(tCfg.risk?.max_exposure_per_coin_pct || 0.25) * 100).toFixed(0)}%`, desc: 'Diversifikasi batas per aset tunggal' },
-              { label: 'Batas Kerugian Harian', val: `${(Number(tCfg.risk?.max_daily_loss_pct || 0.05) * 100).toFixed(1)}%`, desc: 'Daily stop-loss limit' },
-              { label: 'Batas Maksimum Drawdown', val: `${(Number(tCfg.risk?.max_drawdown_pct || 0.15) * 100).toFixed(0)}%`, desc: 'Batas penurunan modal dari puncak' },
-              { label: 'Cooldown Loss Streak', val: `${tCfg.risk?.cooldown_after_loss_streak || 3}x Trade`, desc: 'Pemicu jeda setelah kerugian beruntun' },
+              { label: 'Batas Risiko Maks per Trade', val: `${(Number(tCfg.risk?.max_risk_per_trade_pct || 0.01) * 100).toFixed(1)}%`, desc: 'Batas kerugian maksimal per posisi' },
+              { label: 'Batas Eksposur per Koin', val: `${(Number(tCfg.risk?.max_exposure_per_coin_pct || 0.10) * 100).toFixed(0)}%`, desc: 'Maksimum alokasi koin tunggal (Cap Sizing)' },
+              { label: 'Hard Cap Maks per Order', val: `$${tCfg.risk?.max_order_usdt_cap || 100.0}`, desc: 'Batas absolut USDT per single entry order' },
+              { label: 'Batas Kerugian Harian', val: `${(Number(tCfg.risk?.max_daily_loss_pct || 0.03) * 100).toFixed(1)}%`, desc: 'Daily stop-loss threshold' },
+              { label: 'Batas Drawdown (Auto-Kill Switch)', val: `${(Number(tCfg.risk?.max_drawdown_pct || 0.03) * 100).toFixed(1)}%`, desc: 'Pemicu sakelar darurat otomatis' },
+              { label: 'Cooldown Loss Streak', val: `${tCfg.risk?.cooldown_after_loss_streak || 3}x Trade`, desc: 'Pemicu jeda setelah 3 kerugian beruntun' },
               { label: 'Durasi Cooldown', val: `${tCfg.risk?.cooldown_duration_minutes || 60} Menit`, desc: 'Waktu jeda cooling-off mesin' },
-              { label: 'Ambang Keyakinan Minimum Spot', val: `${(Number(tCfg.risk?.min_confidence_to_trade || 0.60) * 100).toFixed(0)}%`, desc: 'Skor minimal untuk eksekusi spot' },
-              { label: 'Ambang Keyakinan Minimum Futures', val: `${(Number(tCfg.risk?.min_confidence_futures || 0.75) * 100).toFixed(0)}%`, desc: 'Skor minimal untuk eksekusi futures' },
+              { label: 'Ambang Keyakinan Spot', val: `${(Number(tCfg.risk?.min_confidence_to_trade || 0.65) * 100).toFixed(0)}%`, desc: 'Skor minimal untuk eksekusi spot' },
+              { label: 'Ambang Keyakinan Futures', val: `${(Number(tCfg.risk?.min_confidence_futures || 0.75) * 100).toFixed(0)}%`, desc: 'Skor minimal untuk eksekusi futures' },
             ].map((item, i) => (
               <div key={i} className="p-2.5 rounded-md" style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{item.label}</div>

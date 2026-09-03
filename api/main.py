@@ -10,7 +10,9 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException
+import secrets
+from fastapi import FastAPI, HTTPException, Header, Depends, Security
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
@@ -21,6 +23,39 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 load_dotenv(ROOT / ".env")
+
+# Master Admin Secret Token
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "aether-quant-admin-2026")
+
+security_bearer = HTTPBearer(auto_error=False)
+
+def verify_master_token(
+    auth: Optional[HTTPAuthorizationCredentials] = Security(security_bearer),
+    x_admin_token: Optional[str] = Header(None, alias="X-Admin-Token")
+) -> bool:
+    """Verifies Master Admin Token via Bearer or X-Admin-Token header."""
+    expected = os.getenv("ADMIN_SECRET_KEY", "aether-quant-admin-2026")
+    provided = None
+    if auth and auth.credentials:
+        provided = auth.credentials
+    elif x_admin_token:
+        provided = x_admin_token
+
+    if not provided or not secrets.compare_digest(provided.strip(), expected.strip()):
+        raise HTTPException(
+            status_code=401,
+            detail="Akses Ditolak: Master Admin Token tidak valid atau belum dimasukkan."
+        )
+    return True
+
+def mask_key(k: Optional[str]) -> str:
+    """Masks secret API keys to prevent exposure in logs or UI."""
+    if not k:
+        return "—"
+    s = str(k).strip()
+    if len(s) <= 8:
+        return "••••••••"
+    return f"{s[:4]}{'•' * (len(s) - 8)}{s[-4:]}"
 
 from engine.logger import setup_logging
 from engine.storage import load_config, load_state, save_state, load_memory, ensure_dirs
@@ -187,10 +222,20 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Strict CORS Allowlist
+ALLOWED_ORIGINS = [
+    "https://aether-quant-api-sg.onrender.com",
+    "https://aether-quant-ai.vercel.app",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
+    allow_origins=ALLOWED_ORIGINS,
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -198,6 +243,10 @@ app.add_middleware(
 # ============================================================
 # ROUTES
 # ============================================================
+
+@app.post("/api/auth/verify")
+def verify_admin_auth(verified: bool = Depends(verify_master_token)):
+    return {"authenticated": True, "message": "Master Admin Token valid."}
 
 @app.get("/api/status")
 def get_status():
@@ -224,7 +273,7 @@ def get_scan_results():
     return orchestrator._scan_results if orchestrator else {}
 
 @app.post("/api/scan/trigger")
-def trigger_scan():
+def trigger_scan(verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     result = orchestrator.run_scan_cycle()
@@ -317,7 +366,7 @@ class ModeSwitchPayload(BaseModel):
     secret_key: Optional[str] = None
 
 @app.post("/api/mode/switch")
-def switch_mode(payload: ModeSwitchPayload):
+def switch_mode(payload: ModeSwitchPayload, verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     mode = payload.mode.lower()
@@ -399,9 +448,21 @@ def get_memory():
 
 @app.get("/api/config")
 def get_config():
+    app_c = load_config("app")
+    trading_c = load_config("trading")
+    # Mask sensitive API secrets
+    if isinstance(app_c, dict):
+        if "binance" in app_c and isinstance(app_c["binance"], dict):
+            if "api_key" in app_c["binance"]:
+                app_c["binance"]["api_key"] = mask_key(app_c["binance"]["api_key"])
+            if "secret_key" in app_c["binance"]:
+                app_c["binance"]["secret_key"] = "••••••••••••••••"
+        if "ai" in app_c and isinstance(app_c["ai"], dict):
+            if "groq_api_key" in app_c["ai"]:
+                app_c["ai"]["groq_api_key"] = mask_key(app_c["ai"]["groq_api_key"])
     return {
-        "app": load_config("app"),
-        "trading": load_config("trading")
+        "app": app_c,
+        "trading": trading_c
     }
 
 class ConfigUpdate(BaseModel):
@@ -409,7 +470,7 @@ class ConfigUpdate(BaseModel):
     data: dict
 
 @app.post("/api/config")
-def update_config(payload: ConfigUpdate):
+def update_config(payload: ConfigUpdate, verified: bool = Depends(verify_master_token)):
     from engine.storage import save_config
     success = save_config(payload.config_name, payload.data)
     if not success:
@@ -423,7 +484,7 @@ class ControlAction(BaseModel):
     symbols: list = None
 
 @app.post("/api/control")
-def control(payload: ControlAction):
+def control(payload: ControlAction, verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     action = payload.action
@@ -465,7 +526,7 @@ def get_candles(symbol: str, interval: str = "1h", limit: int = 100):
     return {"symbol": symbol, "interval": interval, "candles": candles or []}
 
 @app.get("/api/debug/account")
-def debug_account():
+def debug_account(verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     ex = orchestrator.executor
@@ -474,9 +535,8 @@ def debug_account():
         "status_code": status,
         "base_url": ex.base_url,
         "api_key_set": bool(ex.api_key),
-        "api_key_prefix": ex.api_key[:6] if ex.api_key else None,
+        "api_key_prefix": mask_key(ex.api_key),
         "secret_key_set": bool(ex.secret_key),
-        "secret_key_prefix": ex.secret_key[:6] if ex.secret_key else None,
         "time_offset": getattr(ex, "time_offset", 0),
         "response": data
     }

@@ -1,3 +1,22 @@
+// src/utils/api.ts
+
+export const getAdminToken = (): string => {
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('ADMIN_TOKEN') || 'aether-quant-admin-2026'
+  }
+  return 'aether-quant-admin-2026'
+}
+
+export const setAdminToken = (token: string) => {
+  if (typeof window !== 'undefined') {
+    if (token) {
+      localStorage.setItem('ADMIN_TOKEN', token.trim())
+    } else {
+      localStorage.removeItem('ADMIN_TOKEN')
+    }
+  }
+}
+
 const getBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('API_URL')
@@ -21,9 +40,21 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     url = cleanPath.startsWith('/api') ? cleanPath : `/api${cleanPath}`
   }
 
+  const token = getAdminToken()
+  const customHeaders: Record<string, string> = {
+    'Content-Type': 'application/json',
+  }
+  if (token) {
+    customHeaders['Authorization'] = `Bearer ${token}`
+    customHeaders['X-Admin-Token'] = token
+  }
+
   const res = await fetch(url, {
-    headers: { 'Content-Type': 'application/json' },
     ...options,
+    headers: {
+      ...customHeaders,
+      ...(options?.headers || {}),
+    },
   })
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
@@ -33,12 +64,24 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
+  verifyAdminToken: (token?: string) => {
+    const t = token || getAdminToken()
+    return request<any>('/auth/verify', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${t}`,
+        'X-Admin-Token': t
+      }
+    })
+  },
   getStatus: () => request<any>('/status'),
   getHealth: () => request<any>('/health'),
   getScanResults: () => request<any>('/scan'),
   triggerScan: () => request<any>('/scan/trigger', { method: 'POST' }),
   getPortfolio: () => request<any>('/portfolio'),
   getPositions: () => request<any>('/positions'),
+  getOpenOrders: () => request<any[]>('/orders/open'),
+  getWallet: () => request<any>('/wallet'),
   getHistory: (params?: { limit?: number; months?: number; symbol?: string; strategy?: string }) => {
     const q = new URLSearchParams()
     if (params?.limit) q.set('limit', String(params.limit))
@@ -59,9 +102,7 @@ export const api = {
     request<any>('/control', { method: 'POST', body: JSON.stringify({ action, ...opts }) }),
   getScheduler: () => request<any>('/scheduler'),
   getCandles: (symbol: string, interval = '1h', limit = 100) =>
-    request<any>(`/candles/${symbol}?interval=${interval}&limit=${limit}`),
-  getWallet: () => request<{ mode: string; total_equity_usd: number; assets: Array<any> }>('/wallet'),
+    request<{ symbol: string; interval: string; candles: any[] }>(`/candles/${symbol}?interval=${interval}&limit=${limit}`),
   switchMode: (mode: string, api_key?: string, secret_key?: string) =>
     request<any>('/mode/switch', { method: 'POST', body: JSON.stringify({ mode, api_key, secret_key }) }),
-  getOpenOrders: () => request<any[]>('/orders/open'),
 }
