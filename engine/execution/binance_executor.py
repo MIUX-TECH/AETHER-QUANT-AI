@@ -352,21 +352,19 @@ class BinanceExecutor:
         return data if status == 200 and isinstance(data, list) else []
 
     def get_account_balances(self) -> Dict[str, Dict]:
-        """Fetch all non-zero Spot balances from Binance."""
-        if self.mode == "live":
-            self.base_url = BINANCE_BASE
-            self.futures_url = FUTURES_BASE
-            if not self.api_key:
-                self.api_key = (os.getenv("BINANCE_API_KEY") or "").strip()
-            if not self.secret_key:
-                self.secret_key = (os.getenv("BINANCE_SECRET_KEY") or "").strip()
-        elif self.mode == "testnet":
-            self.base_url = BINANCE_TESTNET
-            self.futures_url = FUTURES_TESTNET
-            if not self.api_key:
-                self.api_key = (os.getenv("BINANCE_TESTNET_API_KEY") or "").strip()
-            if not self.secret_key:
-                self.secret_key = (os.getenv("BINANCE_TESTNET_SECRET_KEY") or "").strip()
+        if not self.api_key or not self.secret_key:
+            try:
+                from engine.storage import load_state
+                st = load_state()
+                creds = st.get("credentials", {})
+                if self.mode == "live" and creds.get("api_key"):
+                    self.api_key = creds["api_key"].strip()
+                    self.secret_key = creds["secret_key"].strip()
+                elif self.mode == "testnet" and creds.get("testnet_api_key"):
+                    self.api_key = creds["testnet_api_key"].strip()
+                    self.secret_key = creds["testnet_secret_key"].strip()
+            except Exception:
+                pass
 
         if self.session and self.api_key:
             self.session.headers.update({"X-MBX-APIKEY": self.api_key})

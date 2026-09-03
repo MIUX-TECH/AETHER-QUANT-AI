@@ -146,10 +146,20 @@ def boot_system():
     })
     save_state(state)
 
-    # API credentials
-    testnet = app_cfg.get("binance", {}).get("testnet", True)
-    api_key = os.getenv("BINANCE_TESTNET_API_KEY") or os.getenv("BINANCE_API_KEY") or ""
-    secret_key = os.getenv("BINANCE_TESTNET_SECRET_KEY") or os.getenv("BINANCE_SECRET_KEY") or ""
+    # API credentials with persistence
+    saved_creds = state.get("credentials", {})
+    if mode == "live":
+        testnet = False
+        api_key = (saved_creds.get("api_key") or os.getenv("BINANCE_API_KEY") or "").strip()
+        secret_key = (saved_creds.get("secret_key") or os.getenv("BINANCE_SECRET_KEY") or "").strip()
+    elif mode == "testnet":
+        testnet = True
+        api_key = (saved_creds.get("testnet_api_key") or os.getenv("BINANCE_TESTNET_API_KEY") or "").strip()
+        secret_key = (saved_creds.get("testnet_secret_key") or os.getenv("BINANCE_TESTNET_SECRET_KEY") or "").strip()
+    else:
+        testnet = False
+        api_key = ""
+        secret_key = ""
 
     # Initialize services
     market_data = MarketDataService(api_key, secret_key, testnet, mode)
@@ -439,10 +449,26 @@ def switch_mode(payload: ModeSwitchPayload, verified: bool = Depends(verify_mast
         orchestrator.executor.base_url = "https://testnet.binance.vision" if testnet else "https://api.binance.com"
         orchestrator.executor.futures_url = "https://testnet.binancefuture.com" if testnet else "https://fapi.binance.com"
         if payload.api_key and payload.secret_key:
-            orchestrator.executor.api_key = payload.api_key
-            orchestrator.executor.secret_key = payload.secret_key
-            orchestrator.executor.session.headers.update({"X-MBX-APIKEY": payload.api_key})
-    
+            orchestrator.executor.api_key = payload.api_key.strip()
+            orchestrator.executor.secret_key = payload.secret_key.strip()
+            orchestrator.executor.session.headers.update({"X-MBX-APIKEY": payload.api_key.strip()})
+            
+            # Persist credentials into state so reboots never lose them
+            state.setdefault("credentials", {})
+            if mode == "live":
+                state["credentials"]["api_key"] = payload.api_key.strip()
+                state["credentials"]["secret_key"] = payload.secret_key.strip()
+            elif mode == "testnet":
+                state["credentials"]["testnet_api_key"] = payload.api_key.strip()
+                state["credentials"]["testnet_secret_key"] = payload.secret_key.strip()
+
+    if hasattr(orchestrator, "market_data"):
+        orchestrator.market_data.mode = mode
+        orchestrator.market_data.testnet = testnet
+        if payload.api_key:
+            orchestrator.market_data.api_key = payload.api_key.strip()
+            orchestrator.market_data.secret_key = payload.secret_key.strip()
+
     state["system"]["mode"] = mode
     save_state(state)
     return {"status": "ok", "mode": mode, "testnet": testnet}
