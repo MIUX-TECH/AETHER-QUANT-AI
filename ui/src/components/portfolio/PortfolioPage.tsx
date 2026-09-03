@@ -1,7 +1,7 @@
 // src/components/portfolio/PortfolioPage.tsx
 import React, { useEffect, useState } from 'react'
 import { useStore } from '../../store/useStore'
-import { StatCard, SectionHeader, PnlDisplay, fmt, fmtPrice, fmtPct } from '../shared'
+import { StatCard, SectionHeader, PnlDisplay, fmt, fmtPrice, fmtPct, TestnetWalletWidget } from '../shared'
 import { Briefcase, RefreshCw, PieChart, Shield, TrendingUp, Layers, CheckCircle2 } from 'lucide-react'
 import { api } from '../../utils/api'
 import { PieChart as RPieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
@@ -70,6 +70,9 @@ export default function PortfolioPage() {
           <span>Sinkron</span>
         </button>
       </div>
+
+      {/* Real-time Binance Testnet Wallet Sync Widget */}
+      <TestnetWalletWidget />
 
       {/* Hero Equity Banner */}
       <div className="card card-lime p-5 mb-4" style={{ position: 'relative', overflow: 'hidden' }}>

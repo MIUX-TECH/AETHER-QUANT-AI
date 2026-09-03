@@ -43,12 +43,12 @@
   --font-ui: 'Inter', system-ui, -apple-system, sans-serif;
   --font-mono: 'DM Mono', 'Space Mono', ui-monospace, monospace;
 
-  --radius: 16px;
-  --radius-sm: 10px;
-  --radius-lg: 24px;
+  --radius: 8px;
+  --radius-sm: 6px;
+  --radius-lg: 12px;
 
-  --shadow-card: 0 4px 24px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.02) inset;
-  --shadow-soft: 0 2px 12px rgba(0,0,0,0.25);
+  --shadow-card: 0 2px 12px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.02) inset;
+  --shadow-soft: 0 1px 6px rgba(0,0,0,0.2);
 }
 
 html, body {
@@ -56,8 +56,8 @@ html, body {
   background: var(--bg-void);
   color: var(--text-primary);
   font-family: var(--font-ui);
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 13px;
+  line-height: 1.4;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overscroll-behavior: none;
@@ -85,8 +85,8 @@ html, body {
 }
 
 .sidebar {
-  width: 220px;
-  min-width: 220px;
+  width: 190px;
+  min-width: 190px;
   background: var(--bg-deep);
   border-right: 1px solid var(--bg-border);
   display: flex;
@@ -116,19 +116,19 @@ html, body {
 }
 
 /* === Scrollbars (modern thin) === */
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: var(--bg-border2); border-radius: 20px; }
+::-webkit-scrollbar-thumb { background: var(--bg-border2); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-/* === Modern Typography === */
-h1 { font-size: 22px; font-weight: 700; letter-spacing: -0.03em; }
-h2 { font-size: 18px; font-weight: 600; letter-spacing: -0.02em; }
-h3 { font-size: 15px; font-weight: 600; }
+/* === Modern Compact Typography === */
+h1 { font-size: 17px; font-weight: 700; letter-spacing: -0.02em; }
+h2 { font-size: 14px; font-weight: 600; letter-spacing: -0.01em; }
+h3 { font-size: 12px; font-weight: 600; }
 
 .mono {
   font-family: var(--font-mono);
-  font-size: 0.9em;
+  font-size: 0.88em;
   letter-spacing: -0.01em;
 }
 

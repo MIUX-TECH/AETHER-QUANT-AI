@@ -3,7 +3,7 @@ import React, { useEffect, useState } from 'react'
 import { useStore } from '../../store/useStore'
 import {
   StatCard, RegimePill, SignalBadge, ConfidenceBar, PnlDisplay,
-  SectionHeader, fmt, fmtPct, fmtTime, fmtPrice, TickerRibbon
+  SectionHeader, fmt, fmtPct, fmtTime, fmtPrice, TickerRibbon, TestnetWalletWidget
 } from '../shared'
 import {
   RefreshCw, Zap, Shield, TrendingUp, DollarSign, Activity,
@@ -69,6 +69,9 @@ export default function DashboardPage() {
     <div className="page">
       {/* Real-time Ticker Ribbon */}
       <TickerRibbon />
+
+      {/* Real-time Binance Testnet Wallet Sync Widget */}
+      <TestnetWalletWidget />
 
       {/* Main Header */}
       <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
