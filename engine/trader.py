@@ -183,12 +183,14 @@ class TradingOrchestrator:
         self.state.setdefault("positions", {}).setdefault("spot", {})[symbol] = position
 
         # Log
-        self._log_decision(symbol, "entry_spot", score, f"Entry @ {order.get('price'):.4f} | {sizing}")
+        fill_price = float(order.get("price") or current_price)
+        fill_qty = float(order.get("executedQty") or sizing.get("position_qty", 0))
+        self._log_decision(symbol, "entry_spot", score, f"Entry @ {fill_price:.4f} | {sizing}")
         self.trade_logger.info(
-            f"SPOT BUY {symbol} | price={order.get('price'):.4f} | "
-            f"qty={order.get('executedQty'):.6f} | usdt={sizing['position_usdt']:.2f} | "
+            f"SPOT BUY {symbol} | price={fill_price:.4f} | "
+            f"qty={fill_qty:.6f} | usdt={sizing['position_usdt']:.2f} | "
             f"sl={sizing['sl_price']:.4f} | tp={sizing['tp_price']:.4f} | "
-            f"conf={score.get('confidence'):.2%} | signal={score.get('signal')}"
+            f"conf={float(score.get('confidence', 0)):.2%} | signal={score.get('signal')}"
         )
 
         return {"executed": True, "symbol": symbol, "type": "spot_buy", "order": order, "sizing": sizing}
@@ -366,11 +368,13 @@ class TradingOrchestrator:
                 self.state["portfolio"].get("realized_pnl_today", 0) + pnl
             )
 
-        self._log_decision(symbol, f"exit_{reason}", {}, f"Closed @ {price:.4f} | PnL: {closed.get('pnl_usdt'):.2f}")
+        pnl_val = float(closed.get('pnl_usdt', 0))
+        pnl_pct_val = float(closed.get('pnl_pct', 0))
+        self._log_decision(symbol, f"exit_{reason}", {}, f"Closed @ {float(price):.4f} | PnL: {pnl_val:.2f}")
         self.trade_logger.info(
             f"CLOSE {trade_type.upper()} {side} {symbol} | reason={reason} | "
-            f"price={price:.4f} | pnl={closed.get('pnl_usdt'):.2f} | "
-            f"pnl_pct={closed.get('pnl_pct'):.3f}% | result={closed.get('result')}"
+            f"price={float(price):.4f} | pnl={pnl_val:.2f} | "
+            f"pnl_pct={pnl_pct_val:.3f}% | result={closed.get('result')}"
         )
 
         return closed
