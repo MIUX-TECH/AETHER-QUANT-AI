@@ -1,16 +1,8 @@
 {
-  "buildCommand": "cd ui && npm run build",
+  "buildCommand": "cd ui && npm install && npm run build",
   "outputDirectory": "ui/dist",
   "framework": "vite",
   "rewrites": [
-    {
-      "source": "/binance-spot/:path*",
-      "destination": "https://testnet.binance.vision/:path*"
-    },
-    {
-      "source": "/binance-futures/:path*",
-      "destination": "https://testnet.binancefuture.com/:path*"
-    },
     {
       "source": "/api/:match*",
       "destination": "https://aether-quant-api-sg.onrender.com/api/:match*"

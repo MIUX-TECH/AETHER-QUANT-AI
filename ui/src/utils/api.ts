@@ -1,7 +1,11 @@
 const getBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('API_URL')
-    if (saved && saved !== '/api' && !saved.includes('localhost')) return saved.replace(/\/$/, '')
+    if (saved && (saved.includes('aether-quant-ai-api.onrender.com') || saved.includes('localhost') || saved === '/api')) {
+      localStorage.removeItem('API_URL')
+    } else if (saved) {
+      return saved.replace(/\/$/, '')
+    }
   }
   return (import.meta as any).env?.VITE_API_BASE_URL || 'https://aether-quant-api-sg.onrender.com'
 }
