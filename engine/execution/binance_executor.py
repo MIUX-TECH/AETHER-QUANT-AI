@@ -13,12 +13,14 @@ import requests
 from typing import Dict, Optional, List, Tuple, Any
 from datetime import datetime
 
+import os
+
 logger = logging.getLogger(__name__)
 
 BINANCE_BASE = "https://api.binance.com"
-BINANCE_TESTNET = "https://testnet.binance.vision"
+BINANCE_TESTNET = os.getenv("BINANCE_TESTNET_BASE_URL", "https://aether-quant-ai.vercel.app/binance-spot")
 FUTURES_BASE = "https://fapi.binance.com"
-FUTURES_TESTNET = "https://testnet.binancefuture.com"
+FUTURES_TESTNET = os.getenv("BINANCE_FUTURES_TESTNET_BASE_URL", "https://aether-quant-ai.vercel.app/binance-futures")
 
 # Paper trading fee simulation
 TAKER_FEE = 0.001  # 0.1%

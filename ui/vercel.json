@@ -4,6 +4,14 @@
   "framework": "vite",
   "rewrites": [
     {
+      "source": "/binance-spot/:path*",
+      "destination": "https://testnet.binance.vision/:path*"
+    },
+    {
+      "source": "/binance-futures/:path*",
+      "destination": "https://testnet.binancefuture.com/:path*"
+    },
+    {
       "source": "/api/:match*",
       "destination": "https://aether-quant-ai-api.onrender.com/api/:match*"
     },
