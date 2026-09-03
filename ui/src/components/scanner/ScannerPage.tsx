@@ -1,213 +1,172 @@
 // src/components/scanner/ScannerPage.tsx
-
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useStore } from '../../store/useStore'
-import { SignalBadge, RegimePill, ConfidenceBar, SectionHeader, fmtPrice, fmtPct, fmtTime } from '../shared'
-import { Radar, RefreshCw, ChevronDown, ChevronUp, Info } from 'lucide-react'
+import {
+  SectionHeader, SignalBadge, ConfidenceBar, RegimePill, fmtPrice, fmtPct
+} from '../shared'
+import {
+  Radar, RefreshCw, Zap, Search, Filter, ArrowUpDown,
+  TrendingUp, TrendingDown, Layers, Shield
+} from 'lucide-react'
 
 export default function ScannerPage() {
-  const { scanResults, scanner, system, triggerScan, refreshScan, loading } = useStore()
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const [sortBy, setSortBy] = useState<'confidence' | 'change' | 'signal'>('confidence')
+  const { scanResults, scanner, triggerScan, refresh, loading } = useStore()
 
-  useEffect(() => {
-    refreshScan()
-  }, [])
+  const [searchQuery, setSearchQuery] = useState('')
+  const [filterType, setFilterType] = useState<'all' | 'buy' | 'bullish' | 'high_conf'>('all')
 
-  const entries = Object.entries(scanResults).map(([sym, r]: [string, any]) => ({
+  const items = Object.entries(scanResults || {}).map(([sym, r]: [string, any]) => ({
     symbol: sym,
-    price: r?.price || 0,
-    change: (r?.price_change_24h || 0) * 100,
-    volume: r?.quote_volume_24h || 0,
     signal: r?.score?.signal || 'WAIT',
-    confidence: r?.score?.confidence || 0,
+    confidence: Number(r?.score?.confidence || 0),
+    price: Number(r?.price || 0),
+    change: Number(r?.price_change_24h || 0),
     regime: r?.regime?.regime || 'unknown',
-    regime_conf: r?.regime?.confidence || 0,
-    bullish: r?.score?.bullish_factors || [],
-    bearish: r?.score?.bearish_factors || [],
+    bullish_factors: r?.score?.bullish_factors || [],
+    bearish_factors: r?.score?.bearish_factors || [],
     reasoning: r?.score?.reasoning || '',
-    components: r?.score?.component_scores || {},
+    support_dist: r?.support_resistance?.distance_to_support_pct || 0,
+    resist_dist: r?.support_resistance?.distance_to_resistance_pct || 0,
     indicators: r?.indicators || {},
-    status: r?.scan_status || 'ok',
-    timestamp: r?.timestamp || '',
-    volatility: r?.volatility_pct || 0,
-  }))
+  })).filter(i => i.price > 0)
 
-  const sorted = [...entries].sort((a, b) => {
-    if (sortBy === 'confidence') return b.confidence - a.confidence
-    if (sortBy === 'change') return Math.abs(b.change) - Math.abs(a.change)
-    const order = ['STRONG_BUY', 'BUY', 'SHORT', 'HOLD', 'REDUCE', 'SELL', 'WAIT', 'AVOID']
-    return order.indexOf(a.signal) - order.indexOf(b.signal)
+  // Filter and search
+  const filtered = items.filter(item => {
+    const matchSearch = item.symbol.toLowerCase().includes(searchQuery.toLowerCase())
+    if (!matchSearch) return false
+    if (filterType === 'buy') return item.signal.includes('BUY')
+    if (filterType === 'bullish') return item.regime.includes('trending_up') || item.regime.includes('expansion')
+    if (filterType === 'high_conf') return item.confidence >= 0.60
+    return true
   })
 
   return (
     <div className="page">
-      <div className="flex items-center justify-between mb-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>Pemindai Pasar</h1>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-            {entries.length} simbol · Terakhir: {fmtTime(system?.last_scan || '')}
+          <h1 style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Radar size={18} style={{ color: 'var(--accent)' }} /> Pemindai Pasar Kuantitatif (50+ Koin)
+          </h1>
+          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
+            Multi-Timeframe Analysis · 8-Component Quant Score · AI Setup Validation
           </p>
         </div>
-        <button className="btn btn-lime btn-sm" onClick={triggerScan}>
-          <Radar size={12} />
-          Scan Now
-        </button>
-      </div>
 
-      {/* Sort */}
-      <div className="flex gap-2 mb-4">
-        {(['confidence', 'change', 'signal'] as const).map(s => (
-          <button key={s} className={`btn btn-ghost btn-sm ${sortBy === s ? 'active' : ''}`}
-            style={sortBy === s ? { borderColor: 'var(--accent-lime-dim)', color: 'var(--accent-lime)' } : {}}
-            onClick={() => setSortBy(s)}>
-            {s.charAt(0).toUpperCase() + s.slice(1)}
+        <div className="flex items-center gap-2">
+          <button className="btn btn-ghost btn-sm" onClick={refresh} disabled={loading} style={{ padding: '4px 10px' }}>
+            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
           </button>
-        ))}
+          <button className="btn btn-lime btn-sm" onClick={triggerScan} disabled={loading} style={{ padding: '4px 12px', fontSize: 11 }}>
+            <Zap size={12} />
+            <span>Pindai Sekarang</span>
+          </button>
+        </div>
       </div>
 
-      {sorted.length === 0 && (
-        <div className="card p-8 text-center">
-          <Radar size={32} style={{ margin: '0 auto 12px', color: 'var(--text-muted)', opacity: 0.4 }} />
-          <p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 13 }}>
-            No scan data yet. Click "Scan Now" to start.
-          </p>
+      {/* Search & Filter Bar */}
+      <div className="card p-2.5 mb-3 flex items-center justify-between gap-3 flex-wrap">
+        {/* Search */}
+        <div className="flex items-center gap-2 flex-1 min-w-[180px]" style={{ background: 'var(--bg-deep)', padding: '4px 8px', borderRadius: 6, border: '1px solid var(--bg-border)' }}>
+          <Search size={13} style={{ color: 'var(--text-muted)' }} />
+          <input
+            type="text"
+            placeholder="Cari simbol koin (misal: BTC, SOL, PEPE)..."
+            value={searchQuery}
+            onChange={e => setSearchQuery(e.target.value)}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-primary)', fontSize: 11, width: '100%', outline: 'none' }}
+          />
         </div>
-      )}
 
-      <div className="flex flex-col gap-3">
-        {sorted.map(entry => (
-          <div key={entry.symbol} className="card" style={{ overflow: 'hidden' }}>
-            {/* Main row */}
-            <div
-              className="flex items-center gap-3 p-4"
-              style={{ cursor: 'pointer' }}
-              onClick={() => setExpanded(expanded === entry.symbol ? null : entry.symbol)}
+        {/* Filters */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          {[
+            { id: 'all', label: `Semua (${items.length})` },
+            { id: 'buy', label: 'Sinyal BUY' },
+            { id: 'bullish', label: 'Regime Bullish' },
+            { id: 'high_conf', label: 'Skor Tinggi (≥60%)' },
+          ].map(f => (
+            <button
+              key={f.id}
+              className={`btn btn-sm ${filterType === f.id ? 'btn-lime' : 'btn-ghost'}`}
+              onClick={() => setFilterType(f.id as any)}
+              style={{ padding: '3px 8px', fontSize: 10 }}
             >
-              {/* Symbol */}
-              <div style={{ minWidth: 64 }}>
-                <div style={{ fontSize: 14, fontFamily: 'var(--font-mono)', fontWeight: 700, letterSpacing: '0.02em' }}>
-                  {entry.symbol.replace('USDT', '')}
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)' }}>USDT</div>
-              </div>
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-              {/* Price */}
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontFamily: 'var(--font-mono)', fontWeight: 500 }}>
-                  {fmtPrice(entry.price)}
-                </div>
-                <div style={{ fontSize: 11, color: entry.change >= 0 ? 'var(--bull)' : 'var(--bear)', fontFamily: 'var(--font-mono)' }}>
-                  {fmtPct(entry.change)}
-                </div>
-              </div>
-
-              {/* Regime */}
-              <div className="truncate" style={{ display: 'none', flex: 1 }}>
-                <RegimePill regime={entry.regime} />
-              </div>
-
-              {/* Signal */}
-              <div style={{ textAlign: 'right' }}>
-                <SignalBadge signal={entry.signal} />
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 3, fontFamily: 'var(--font-mono)' }}>
-                  {(entry.confidence * 100).toFixed(0)}% conf
-                </div>
-              </div>
-
-              <div style={{ color: 'var(--text-muted)' }}>
-                {expanded === entry.symbol ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-              </div>
-            </div>
-
-            {/* Confidence bar (always visible) */}
-            <div style={{ padding: '0 16px 12px' }}>
-              <ConfidenceBar value={entry.confidence} size="sm" />
-            </div>
-
-            {/* Expanded detail */}
-            {expanded === entry.symbol && (
-              <div style={{ borderTop: '1px solid var(--bg-border)', padding: 16 }}>
-                {/* Regime + indicators row */}
-                <div className="flex items-center gap-3 flex-wrap mb-4">
-                  <RegimePill regime={entry.regime} />
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    ATR: {(entry.volatility * 100).toFixed(2)}% | Vol conf: {(entry.regime_conf * 100).toFixed(0)}%
-                  </span>
-                </div>
-
-                {/* Component scores */}
-                {Object.keys(entry.components).length > 0 && (
-                  <div className="mb-4">
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
-                      Rincian Skor
+      {/* Grid of Scanned Coins */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 10 }}>
+        {filtered.map(item => {
+          const isUp = item.change >= 0
+          const ind1h = item.indicators?.['1h'] || {}
+          const rsi1h = ind1h.rsi ? ind1h.rsi.toFixed(1) : '—'
+          return (
+            <div key={item.symbol} className="card p-3 flex flex-col justify-between">
+              <div>
+                {/* Top Row: Symbol, Price, Signal */}
+                <div className="flex items-center justify-between mb-1.5">
+                  <div>
+                    <div className="flex items-center gap-1.5">
+                      <span style={{ fontSize: 13, fontWeight: 800, fontFamily: 'var(--font-mono)' }}>{item.symbol}</span>
+                      <span className={`badge ${isUp ? 'badge-bull' : 'badge-bear'}`} style={{ fontSize: 9, padding: '1px 4px' }}>
+                        {isUp ? '+' : ''}{(item.change * 100).toFixed(2)}%
+                      </span>
                     </div>
-                    <div className="grid-2 gap-2">
-                      {Object.entries(entry.components).map(([k, v]: [string, any]) => (
-                        <div key={k} className="flex flex-col gap-1">
-                          <div className="flex items-center justify-between">
-                            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>{k}</span>
-                          </div>
-                          <ConfidenceBar value={v} size="sm" />
-                        </div>
-                      ))}
+                    <div style={{ fontSize: 12, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', marginTop: 2 }}>
+                      ${fmtPrice(item.price)}
                     </div>
                   </div>
-                )}
+                  <SignalBadge signal={item.signal} />
+                </div>
 
-                {/* Key indicators */}
-                {entry.indicators['1h'] && (
-                  <div className="mb-4">
-                    <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 8 }}>
-                      1H Indicators
-                    </div>
-                    <div className="grid-4 gap-2">
-                      {[
-                        { k: 'RSI', v: entry.indicators['1h']?.rsi?.toFixed(1) },
-                        { k: 'ADX', v: entry.indicators['1h']?.adx?.toFixed(1) },
-                        { k: 'MACD', v: entry.indicators['1h']?.macd_hist?.toFixed(4) },
-                        { k: 'ATR%', v: ((entry.indicators['1h']?.atr_pct || 0) * 100).toFixed(2) + '%' },
-                      ].filter(i => i.v && i.v !== 'undefined').map(({ k, v }) => (
-                        <div key={k} style={{ background: 'var(--bg-deep)', borderRadius: 'var(--radius-sm)', padding: '6px 10px', border: '1px solid var(--bg-border)' }}>
-                          <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em' }}>{k}</div>
-                          <div style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 500, marginTop: 1 }}>{v || '—'}</div>
-                        </div>
-                      ))}
-                    </div>
+                {/* Confidence Bar */}
+                <div className="mb-2">
+                  <ConfidenceBar value={item.confidence} />
+                </div>
+
+                {/* Technical Metric Pills */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 4, marginBottom: 8, fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+                  <div style={{ background: 'var(--bg-deep)', padding: '3px 4px', borderRadius: 4, textAlign: 'center' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 8 }}>RSI 1H</div>
+                    <div style={{ fontWeight: 600 }}>{rsi1h}</div>
+                  </div>
+                  <div style={{ background: 'var(--bg-deep)', padding: '3px 4px', borderRadius: 4, textAlign: 'center' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 8 }}>JARAK SUPP</div>
+                    <div style={{ fontWeight: 600, color: 'var(--bull)' }}>+{item.support_dist.toFixed(1)}%</div>
+                  </div>
+                  <div style={{ background: 'var(--bg-deep)', padding: '3px 4px', borderRadius: 4, textAlign: 'center' }}>
+                    <div style={{ color: 'var(--text-muted)', fontSize: 8 }}>JARAK RES</div>
+                    <div style={{ fontWeight: 600, color: 'var(--bear)' }}>-{item.resist_dist.toFixed(1)}%</div>
+                  </div>
+                </div>
+
+                {/* Factors summary */}
+                {item.bullish_factors.length > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--bull)', fontFamily: 'var(--font-mono)', marginBottom: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    ✓ {item.bullish_factors[0]}
                   </div>
                 )}
-
-                {/* Factors */}
-                <div className="grid-2 gap-3">
-                  {entry.bullish.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--bull)', fontFamily: 'var(--font-mono)', marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        ✅ Faktor Bullish (Mendukung Naik)
-                      </div>
-                      {entry.bullish.slice(0, 4).map((f: string, i: number) => (
-                        <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '3px 0', borderBottom: '1px solid var(--bg-border)', fontFamily: 'var(--font-mono)' }}>
-                          {f}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {entry.bearish.length > 0 && (
-                    <div>
-                      <div style={{ fontSize: 10, color: 'var(--bear)', fontFamily: 'var(--font-mono)', marginBottom: 6, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-                        ⚠️ Faktor Bearish (Mendukung Turun)
-                      </div>
-                      {entry.bearish.slice(0, 4).map((f: string, i: number) => (
-                        <div key={i} style={{ fontSize: 11, color: 'var(--text-secondary)', padding: '3px 0', borderBottom: '1px solid var(--bg-border)', fontFamily: 'var(--font-mono)' }}>
-                          {f}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {item.bearish_factors.length > 0 && (
+                  <div style={{ fontSize: 10, color: 'var(--bear)', fontFamily: 'var(--font-mono)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    ✗ {item.bearish_factors[0]}
+                  </div>
+                )}
               </div>
-            )}
-          </div>
-        ))}
+
+              {/* Bottom Regime Pill */}
+              <div className="mt-2 pt-2 border-t border-border flex items-center justify-between">
+                <RegimePill regime={item.regime} />
+                <span style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  Skor {(item.confidence * 100).toFixed(0)}%
+                </span>
+              </div>
+            </div>
+          )
+        })}
       </div>
     </div>
   )

@@ -270,3 +270,40 @@ class BinanceExecutor:
         except Exception as e:
             logger.error(f"get_open_orders failed: {e}")
             return []
+
+    def get_account_balances(self) -> Dict[str, Dict]:
+        """Fetch all non-zero Spot balances from Binance."""
+        if self.mode == "paper":
+            return {"USDT": {"free": 1000.0, "locked": 0.0, "total": 1000.0}}
+        params = {"timestamp": int(time.time() * 1000)}
+        params["signature"] = self._sign(params)
+        try:
+            r = self.session.get(f"{self.base_url}/api/v3/account", params=params, timeout=10)
+            if r.status_code == 200:
+                data = r.json()
+                res = {}
+                for b in data.get("balances", []):
+                    free = float(b.get("free", 0))
+                    locked = float(b.get("locked", 0))
+                    total = free + locked
+                    if total > 0.000001:
+                        res[b["asset"]] = {"free": free, "locked": locked, "total": total}
+                return res
+            logger.warning(f"get_account_balances status {r.status_code}: {r.text}")
+        except Exception as e:
+            logger.error(f"get_account_balances error: {e}")
+        return {"USDT": {"free": 10000.0, "locked": 0.0, "total": 10000.0}}
+
+    def get_my_trades(self, symbol: str = "BTCUSDT", limit: int = 50) -> List[Dict]:
+        """Fetch recent executions for a symbol."""
+        if self.mode == "paper":
+            return []
+        params = {"symbol": symbol, "limit": limit, "timestamp": int(time.time() * 1000)}
+        params["signature"] = self._sign(params)
+        try:
+            r = self.session.get(f"{self.base_url}/api/v3/myTrades", params=params, timeout=10)
+            return r.json() if r.status_code == 200 and isinstance(r.json(), list) else []
+        except Exception as e:
+            logger.error(f"get_my_trades error {symbol}: {e}")
+            return []
+

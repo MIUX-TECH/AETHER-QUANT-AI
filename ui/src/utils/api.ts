@@ -56,4 +56,8 @@ export const api = {
   getScheduler: () => request<any>('/scheduler'),
   getCandles: (symbol: string, interval = '1h', limit = 100) =>
     request<any>(`/candles/${symbol}?interval=${interval}&limit=${limit}`),
+  getWallet: () => request<{ mode: string; total_equity_usd: number; assets: Array<any> }>('/wallet'),
+  switchMode: (mode: string, api_key?: string, secret_key?: string) =>
+    request<any>('/mode/switch', { method: 'POST', body: JSON.stringify({ mode, api_key, secret_key }) }),
+  getOpenOrders: () => request<any[]>('/orders/open'),
 }

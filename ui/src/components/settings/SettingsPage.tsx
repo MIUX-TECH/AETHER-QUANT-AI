@@ -1,313 +1,244 @@
 // src/components/settings/SettingsPage.tsx
-
-import React, { useEffect, useState } from 'react'
+import React, { useState } from 'react'
 import { useStore } from '../../store/useStore'
-import { SectionHeader, ModeBadge, fmtTime } from '../shared'
-import { Settings, AlertTriangle, Shield, RefreshCw, Save, Plus, X, Zap } from 'lucide-react'
-import { api } from '../../utils/api'
-
-const MODES = ['paper', 'live', 'safe', 'analysis'] as const
-const DEFAULT_SYMBOLS = ['BTCUSDT', 'ETHUSDT', 'SOLUSDT', 'XRPUSDT']
+import { SectionHeader } from '../shared'
+import {
+  Settings, Key, Shield, Sliders, ToggleLeft, ToggleRight,
+  Save, CheckCircle2, AlertTriangle, RefreshCw, Zap, Globe
+} from 'lucide-react'
 
 export default function SettingsPage() {
-  const { system, risk, scanner, scheduler, control, refreshScheduler, refresh } = useStore()
-  const [config, setConfig] = useState<any>(null)
-  const [tradingConfig, setTradingConfig] = useState<any>(null)
-  const [symbols, setSymbols] = useState<string[]>(scanner?.symbols || DEFAULT_SYMBOLS)
-  const [newSymbol, setNewSymbol] = useState('')
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
-  const [activeSection, setActiveSection] = useState('system')
+  const { system, risk, scanner, switchTradingMode, control, refresh, loading } = useStore()
 
-  useEffect(() => {
-    api.getConfig().then(c => {
-      setConfig(c.app || {})
-      setTradingConfig(c.trading || {})
-    })
-    refreshScheduler()
-  }, [])
+  const [currentMode, setCurrentMode] = useState(system?.mode || 'testnet')
+  const [apiKey, setApiKey] = useState('')
+  const [secretKey, setSecretKey] = useState('')
+  const [symbolsText, setSymbolsText] = useState((scanner?.symbols || []).join(', '))
+  const [saveStatus, setSaveStatus] = useState<string | null>(null)
 
-  useEffect(() => {
-    setSymbols(scanner?.symbols || DEFAULT_SYMBOLS)
-  }, [scanner?.symbols])
+  // Risk parameters state
+  const [riskPerTrade, setRiskPerTrade] = useState(2.0)
+  const [portfolioHeat, setPortfolioHeat] = useState(6.0)
+  const [maxDrawdown, setMaxDrawdown] = useState(15.0)
 
-  const saveSymbols = async () => {
-    await control('update_symbols', { symbols })
-  }
-
-  const addSymbol = () => {
-    const s = newSymbol.trim().toUpperCase()
-    if (s && !symbols.includes(s)) {
-      setSymbols([...symbols, s])
-      setNewSymbol('')
+  const handleSaveMode = async (mode: string) => {
+    setCurrentMode(mode)
+    setSaveStatus('Menyimpan mode...')
+    try {
+      await switchTradingMode(mode, apiKey || undefined, secretKey || undefined)
+      setSaveStatus('Mode berhasil diaktifkan!')
+      setTimeout(() => setSaveStatus(null), 3000)
+    } catch (e: any) {
+      setSaveStatus(`Gagal: ${e.message}`)
     }
   }
 
-  const removeSymbol = (sym: string) => {
-    setSymbols(symbols.filter(s => s !== sym))
+  const handleSaveSymbols = async () => {
+    const list = symbolsText.split(',').map((s: string) => s.trim().toUpperCase()).filter((s: string) => s.length > 3)
+    setSaveStatus('Menyimpan daftar koin...')
+    try {
+      await control('update_symbols', { symbols: list })
+      setSaveStatus('Daftar koin berhasil diperbarui!')
+      setTimeout(() => setSaveStatus(null), 3000)
+    } catch (e: any) {
+      setSaveStatus(`Gagal: ${e.message}`)
+    }
   }
-
-  const saveTradingConfig = async () => {
-    setSaving(true)
-    await api.updateConfig('trading', tradingConfig)
-    setSaving(false)
-    setSaved(true)
-    setTimeout(() => setSaved(false), 2000)
-  }
-
-  const sections = [
-    { id: 'system', label: 'Sistem' },
-    { id: 'symbols', label: 'Simbol' },
-    { id: 'risk', label: 'Risiko' },
-    { id: 'trading', label: 'Perdagangan' },
-    { id: 'scheduler', label: 'Penjadwal' },
-  ]
 
   return (
     <div className="page">
-      <div className="flex items-center justify-between mb-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3">
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>Pengaturan</h1>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-            Konfigurasi sistem · disimpan ke file lokal
+          <h1 style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Settings size={18} style={{ color: 'var(--accent)' }} /> Pengaturan & Konfigurasi Mesin
+          </h1>
+          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
+            Kontrol Mode Trading · Manajemen Kunci API · Konfigurasi Risiko & Watchlist
           </p>
         </div>
-        <ModeBadge mode={system?.mode || 'paper'} />
+        {saveStatus && (
+          <span className="badge badge-lime" style={{ fontSize: 10 }}>{saveStatus}</span>
+        )}
       </div>
 
-      {/* Section tabs */}
-      <div className="flex gap-2 flex-wrap mb-5">
-        {sections.map(s => (
-          <button key={s.id} className="btn btn-ghost btn-sm"
-            style={activeSection === s.id ? { borderColor: 'var(--accent-lime-dim)', color: 'var(--accent-lime)' } : {}}
-            onClick={() => setActiveSection(s.id)}>{s.label}</button>
-        ))}
+      {/* Mode Selection Cards */}
+      <div className="card p-3 mb-3">
+        <SectionHeader title="Mode Operasi Trading" subtitle="Pilih lingkungan eksekusi pesanan bot" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 8, marginTop: 8 }}>
+          {[
+            {
+              id: 'paper',
+              title: '🟢 Paper Trading',
+              badge: 'SIMULASI',
+              desc: 'Simulasi tanpa API key, harga Binance real-time, saldo virtual $1,000.',
+              color: 'var(--bull)'
+            },
+            {
+              id: 'testnet',
+              title: '🔵 Binance Testnet',
+              badge: 'HMAC TESTNET',
+              desc: 'Eksekusi order nyata di Binance Testnet resmi dengan saldo virtual $10,000 USDT.',
+              color: '#00f0ff'
+            },
+            {
+              id: 'live',
+              title: '🔴 Binance Mainnet Live',
+              badge: 'REAL FUNDS',
+              desc: 'Eksekusi langsung ke bursa Binance asli menggunakan dana sungguhan Anda.',
+              color: 'var(--bear)'
+            },
+          ].map(m => {
+            const isSelected = (system?.mode || 'testnet') === m.id
+            return (
+              <div
+                key={m.id}
+                className="p-3 cursor-pointer transition-all"
+                style={{
+                  background: isSelected ? 'var(--bg-card2)' : 'var(--bg-deep)',
+                  border: isSelected ? `1px solid ${m.color}` : '1px solid var(--bg-border)',
+                  borderRadius: 6,
+                }}
+                onClick={() => handleSaveMode(m.id)}
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <span style={{ fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-ui)', color: 'var(--text-primary)' }}>{m.title}</span>
+                  {isSelected && <span className="badge badge-lime" style={{ fontSize: 9 }}>AKTIF</span>}
+                </div>
+                <p style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', lineHeight: 1.4 }}>
+                  {m.desc}
+                </p>
+              </div>
+            )
+          })}
+        </div>
       </div>
 
-      {/* System section */}
-      {activeSection === 'system' && (
-        <div className="flex flex-col gap-4">
-          {/* Kill switch */}
-          <div className="card p-4" style={{ borderColor: system?.kill_switch ? 'var(--bear)' : 'var(--bg-border)' }}>
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertTriangle size={14} style={{ color: 'var(--bear)' }} />
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>Sakelar Darurat</span>
-                </div>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  Segera menghentikan SEMUA perdagangan. Tidak ada entri atau keluar baru.
-                </p>
-              </div>
-              <label className="toggle">
-                <input type="checkbox" checked={!!system?.kill_switch}
-                  onChange={e => control('kill_switch', { value: e.target.checked })} />
-                <span className="toggle-slider" />
-              </label>
-            </div>
-            {system?.kill_switch && (
-              <div className="flex items-center gap-2 mt-3 p-2" style={{ background: 'var(--bear-bg)', borderRadius: 'var(--radius-sm)' }}>
-                <AlertTriangle size={12} style={{ color: 'var(--bear)' }} />
-                <span style={{ fontSize: 11, color: 'var(--bear)', fontFamily: 'var(--font-mono)' }}>
-                  SAKELAR DARURAT AKTIF — semua perdagangan dihentikan
-                </span>
-              </div>
-            )}
+      {/* API Key Management */}
+      <div className="card p-3 mb-3">
+        <SectionHeader title="Kredensial API Binance" subtitle="API Key & Secret Key untuk otentikasi pesanan HMAC-SHA256" />
+        <div className="flex flex-col gap-2.5 mt-2">
+          <div>
+            <label style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+              BINANCE API KEY
+            </label>
+            <input
+              type="text"
+              className="w-full p-2 rounded-md font-mono"
+              style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11 }}
+              placeholder="H73PTh2NkHGdFaf48uZwG8pgknQTQTzejxHaTOZIZyCdNusY06cSg8gTnqbduNEV"
+              value={apiKey}
+              onChange={e => setApiKey(e.target.value)}
+            />
           </div>
 
-          {/* Safe mode */}
-          <div className="card p-4">
-            <div className="flex items-center justify-between gap-3">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <Shield size={14} style={{ color: 'var(--warn)' }} />
-                  <span style={{ fontSize: 13, fontWeight: 600 }}>Mode Aman</span>
-                </div>
-                <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                  Hanya pantau. Tidak ada entri baru tapi mengizinkan keluar.
-                </p>
-              </div>
-              <label className="toggle">
-                <input type="checkbox" checked={!!system?.safe_mode}
-                  onChange={e => control('safe_mode', { value: e.target.checked })} />
-                <span className="toggle-slider" />
-              </label>
-            </div>
+          <div>
+            <label style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', display: 'block', marginBottom: 4 }}>
+              BINANCE SECRET KEY
+            </label>
+            <input
+              type="password"
+              className="w-full p-2 rounded-md font-mono"
+              style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11 }}
+              placeholder="••••••••••••••••••••••••••••••••••••••••••••••••••••••••"
+              value={secretKey}
+              onChange={e => setSecretKey(e.target.value)}
+            />
           </div>
 
-          {/* Trading mode */}
-          <div className="card p-4">
-            <SectionHeader title="Mode Perdagangan" subtitle="Berlaku segera" />
-            <div className="grid-2 gap-2">
-              {MODES.map(m => (
-                <button key={m} className={`btn btn-ghost`}
-                  style={{
-                    justifyContent: 'center',
-                    ...(system?.mode === m ? { borderColor: 'var(--accent-lime-dim)', background: 'var(--accent-lime-glow)', color: 'var(--accent-lime)' } : {}),
-                  }}
-                  onClick={() => control('set_mode', { mode: m })}>
-                  {m.toUpperCase()}
-                </button>
-              ))}
-            </div>
-            <p style={{ marginTop: 12, fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', lineHeight: 1.6 }}>
-              <strong style={{ color: 'var(--text-secondary)' }}>paper</strong> — Perdagangan simulasi, tidak pakai uang asli<br />
-              <strong style={{ color: 'var(--text-secondary)' }}>live</strong> — Eksekusi Binance nyata (butuh API key)<br />
-              <strong style={{ color: 'var(--text-secondary)' }}>safe</strong> — Hanya analisis, tidak ada eksekusi trade<br />
-              <strong style={{ color: 'var(--text-secondary)' }}>analysis</strong> — Hanya pindai dan skor
-            </p>
-          </div>
-
-          {/* Manual job triggers */}
-          <div className="card p-4">
-            <SectionHeader title="Pemicu Manual" subtitle="Jalankan tugas terjadwal sesuai permintaan" />
-            <div className="grid-2 gap-2">
-              {[
-                { label: '⚡ Jalankan Pindai', job: 'scan' },
-                { label: '⚖️ Rebalance', job: 'rebalance' },
-                { label: '🧠 Update Pembelajaran', job: 'learning' },
-                { label: '📊 Laporan Harian', job: 'report' },
-              ].map(j => (
-                <button key={j.job} className="btn btn-ghost"
-                  style={{ justifyContent: 'center', fontSize: 12 }}
-                  onClick={() => control('run_job', { mode: j.job })}>
-                  {j.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Symbols section */}
-      {activeSection === 'symbols' && (
-        <div className="card p-4">
-          <SectionHeader title="Simbol yang Dipindai" subtitle="Simbol untuk dipindai dan ditrading" />
-          <div className="flex flex-col gap-2 mb-4">
-            {symbols.map(sym => (
-              <div key={sym} className="flex items-center gap-2 p-2" style={{ background: 'var(--bg-deep)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--bg-border)' }}>
-                <span style={{ flex: 1, fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>{sym}</span>
-                <button className="btn btn-ghost btn-icon btn-sm" onClick={() => removeSymbol(sym)}>
-                  <X size={12} />
-                </button>
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-2 mb-3">
-            <input className="input" placeholder="Tambah simbol (contoh: BNBUSDT)" value={newSymbol}
-              onChange={e => setNewSymbol(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && addSymbol()} />
-            <button className="btn btn-ghost" onClick={addSymbol}><Plus size={14} /></button>
-          </div>
-          <button className="btn btn-lime w-full" onClick={saveSymbols}>
-            <Save size={12} /> Simpan Simbol
-          </button>
-        </div>
-      )}
-
-      {/* Risk section */}
-      {activeSection === 'risk' && tradingConfig?.risk && (
-        <div className="card p-4">
-          <SectionHeader title="Parameter Risiko" />
-          <div className="flex flex-col gap-4">
-            {[
-              { key: 'max_risk_per_trade_pct', label: 'Risiko Maks per Trade', pct: true },
-              { key: 'max_portfolio_exposure_pct', label: 'Eksposur Portofolio Maks', pct: true },
-              { key: 'max_exposure_per_coin_pct', label: 'Eksposur per Koin Maks', pct: true },
-              { key: 'max_daily_loss_pct', label: 'Kerugian Harian Maks', pct: true },
-              { key: 'max_drawdown_pct', label: 'Drawdown Maks', pct: true },
-              { key: 'min_confidence_to_trade', label: 'Keyakinan Min (Spot)', pct: true },
-              { key: 'min_confidence_futures', label: 'Keyakinan Min (Futures)', pct: true },
-              { key: 'cooldown_after_loss_streak', label: 'Cooldown Setelah N Rugi', pct: false },
-              { key: 'cooldown_duration_minutes', label: 'Durasi Cooldown (menit)', pct: false },
-            ].map(field => (
-              <div key={field.key}>
-                <label style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                  {field.label}
-                </label>
-                <input type="number" className="input" step={field.pct ? 0.01 : 1}
-                  value={tradingConfig.risk[field.key] ?? ''}
-                  onChange={e => setTradingConfig((prev: any) => ({
-                    ...prev, risk: { ...prev.risk, [field.key]: parseFloat(e.target.value) }
-                  }))} />
-                {field.pct && (
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                    = {((tradingConfig.risk[field.key] || 0) * 100).toFixed(1)}%
-                  </span>
-                )}
-              </div>
-            ))}
-            <button className="btn btn-lime w-full" onClick={saveTradingConfig} disabled={saving}>
-              <Save size={12} /> {saving ? 'Menyimpan...' : saved ? '✓ Tersimpan' : 'Simpan Konfigurasi Risiko'}
+          <div className="flex justify-end mt-1">
+            <button
+              className="btn btn-lime btn-sm"
+              onClick={() => handleSaveMode(currentMode)}
+              disabled={loading}
+              style={{ padding: '4px 12px', fontSize: 11 }}
+            >
+              <Save size={12} /> Simpan Kredensial
             </button>
           </div>
         </div>
-      )}
+      </div>
 
-      {/* Trading section */}
-      {activeSection === 'trading' && tradingConfig?.portfolio && (
-        <div className="flex flex-col gap-4">
-          <div className="card p-4">
-            <SectionHeader title="Alokasi Portofolio" />
-            <div className="flex flex-col gap-4">
-              {[
-                { key: 'total_capital_usdt', label: 'Modal Total (USDT)', obj: 'portfolio' },
-                { key: 'spot_allocation_pct', label: 'Alokasi Spot', obj: 'portfolio', pct: true },
-                { key: 'futures_allocation_pct', label: 'Alokasi Futures', obj: 'portfolio', pct: true },
-                { key: 'spot_btc_pct', label: 'BTC % dari Spot', obj: 'portfolio', pct: true },
-              ].map(field => (
-                <div key={field.key}>
-                  <label style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>
-                    {field.label}
-                  </label>
-                  <input type="number" className="input" step={field.pct ? 0.01 : 1}
-                    value={tradingConfig[field.obj]?.[field.key] ?? ''}
-                    onChange={e => setTradingConfig((prev: any) => ({
-                      ...prev, [field.obj]: { ...prev[field.obj], [field.key]: parseFloat(e.target.value) }
-                    }))} />
-                </div>
-              ))}
+      {/* Coin Watchlist Management */}
+      <div className="card p-3 mb-3">
+        <SectionHeader title="Daftar Koin yang Dipindai (Watchlist)" subtitle="Pisahkan dengan tanda koma (misal: BTCUSDT, ETHUSDT, SOLUSDT, NEARUSDT, AVAXUSDT)" />
+        <div className="mt-2">
+          <textarea
+            rows={3}
+            className="w-full p-2 rounded-md font-mono"
+            style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11, resize: 'vertical' }}
+            value={symbolsText}
+            onChange={e => setSymbolsText(e.target.value)}
+          />
+          <div className="flex justify-between items-center mt-2">
+            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+              Total: {symbolsText.split(',').filter((s: string) => s.trim().length > 3).length} simbol aktif
+            </span>
+            <button
+              className="btn btn-lime btn-sm"
+              onClick={handleSaveSymbols}
+              disabled={loading}
+              style={{ padding: '4px 12px', fontSize: 11 }}
+            >
+              <Save size={12} /> Perbarui Watchlist
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Risk Management Sliders */}
+      <div className="card p-3">
+        <SectionHeader title="Batas & Parameter Manajemen Risiko" subtitle="Perlindungan modal otomatis ATR dan batas drawdown" />
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 8 }}>
+          <div>
+            <div className="flex justify-between items-center mb-1" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Maks Risiko per Trade</span>
+              <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{riskPerTrade.toFixed(1)}%</span>
             </div>
+            <input
+              type="range"
+              min="0.5"
+              max="5.0"
+              step="0.1"
+              value={riskPerTrade}
+              onChange={e => setRiskPerTrade(parseFloat(e.target.value))}
+              style={{ width: '100%', accentColor: 'var(--accent)' }}
+            />
           </div>
-          <button className="btn btn-lime w-full" onClick={saveTradingConfig} disabled={saving}>
-            <Save size={12} /> {saving ? 'Menyimpan...' : saved ? '✓ Tersimpan' : 'Simpan Konfigurasi Trading'}
-          </button>
-        </div>
-      )}
 
-      {/* Scheduler section */}
-      {activeSection === 'scheduler' && (
-        <div className="card p-4">
-          <SectionHeader title="Status Penjadwal" action={
-            <button className="btn btn-ghost btn-sm" onClick={refreshScheduler}><RefreshCw size={12} /></button>
-          } />
-          <div className="flex flex-col gap-2">
-            {scheduler?.jobs && Object.entries(scheduler.jobs).map(([name, job]: [string, any]) => (
-              <div key={name} style={{ background: 'var(--bg-deep)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', border: '1px solid var(--bg-border)' }}>
-                <div className="flex items-center justify-between gap-2 mb-1">
-                  <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-primary)', textTransform: 'capitalize' }}>
-                    {name}
-                  </span>
-                  <div className="flex items-center gap-3">
-                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-                      setiap {job.interval_seconds}s
-                    </span>
-                    <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: job.enabled ? 'var(--bull)' : 'var(--text-muted)' }}>
-                      {job.enabled ? '● aktif' : '○ dijeda'}
-                    </span>
-                  </div>
-                </div>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', display: 'flex', gap: 16 }}>
-                  <span>Jalan: {job.run_count}</span>
-                  <span>Error: {job.error_count}</span>
-                  <span>Berikutnya dalam: {job.next_run_in}s</span>
-                  {job.last_error && <span style={{ color: 'var(--bear)' }}>⚠ {job.last_error.slice(0, 40)}</span>}
-                </div>
-              </div>
-            ))}
+          <div>
+            <div className="flex justify-between items-center mb-1" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Maksimal Heat Portofolio</span>
+              <span style={{ fontWeight: 700, color: 'var(--accent)' }}>{portfolioHeat.toFixed(1)}%</span>
+            </div>
+            <input
+              type="range"
+              min="2.0"
+              max="15.0"
+              step="0.5"
+              value={portfolioHeat}
+              onChange={e => setPortfolioHeat(parseFloat(e.target.value))}
+              style={{ width: '100%', accentColor: 'var(--accent)' }}
+            />
+          </div>
+
+          <div>
+            <div className="flex justify-between items-center mb-1" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+              <span style={{ color: 'var(--text-secondary)' }}>Batas Max Drawdown</span>
+              <span style={{ fontWeight: 700, color: 'var(--bear)' }}>{maxDrawdown.toFixed(1)}%</span>
+            </div>
+            <input
+              type="range"
+              min="5.0"
+              max="25.0"
+              step="1.0"
+              value={maxDrawdown}
+              onChange={e => setMaxDrawdown(parseFloat(e.target.value))}
+              style={{ width: '100%', accentColor: 'var(--bear)' }}
+            />
           </div>
         </div>
-      )}
+      </div>
     </div>
   )
 }

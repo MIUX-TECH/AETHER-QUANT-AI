@@ -1,9 +1,8 @@
-// src/store/useStore.ts — Global state with Zustand
-
+// src/store/useStore.ts — Centralized Global State Management
 import { create } from 'zustand'
 import { api } from '../utils/api'
 
-interface SystemState {
+export interface SystemState {
   status: string
   mode: string
   kill_switch: boolean
@@ -12,7 +11,7 @@ interface SystemState {
   auto_enabled?: boolean
 }
 
-interface Portfolio {
+export interface Portfolio {
   total_equity: number
   spot_equity: number
   futures_equity: number
@@ -24,7 +23,7 @@ interface Portfolio {
   last_updated: string | null
 }
 
-interface Risk {
+export interface Risk {
   daily_loss_pct: number
   loss_streak: number
   cooldown_active: boolean
@@ -37,11 +36,28 @@ interface Risk {
   safe_mode: boolean
 }
 
+export interface WalletAsset {
+  asset: string
+  free: number
+  locked: number
+  total: number
+  price: number
+  usd_value: number
+}
+
+export interface WalletState {
+  mode: string
+  total_equity_usd: number
+  assets: WalletAsset[]
+}
+
 interface AppStore {
   // Data
   system: SystemState
   portfolio: Portfolio
   risk: Risk
+  wallet: WalletState
+  openOrders: any[]
   positions: { spot: any[]; futures: any[] }
   scanResults: Record<string, any>
   decisions: any[]
@@ -62,6 +78,7 @@ interface AppStore {
 
   // Actions
   refresh: () => Promise<void>
+  refreshWallet: () => Promise<void>
   refreshScan: () => Promise<void>
   refreshHistory: () => Promise<void>
   refreshPerformance: (months?: number) => Promise<void>
@@ -70,19 +87,20 @@ interface AppStore {
   refreshMemory: () => Promise<void>
   refreshScheduler: () => Promise<void>
   triggerScan: () => Promise<void>
+  switchTradingMode: (mode: string, api_key?: string, secret_key?: string) => Promise<void>
   control: (action: string, opts?: any) => Promise<void>
   setActiveTab: (tab: string) => void
 }
 
 const defaultPortfolio: Portfolio = {
-  total_equity: 0,
-  spot_equity: 0,
-  futures_equity: 0,
+  total_equity: 1000,
+  spot_equity: 900,
+  futures_equity: 100,
   unrealized_pnl: 0,
   realized_pnl_today: 0,
-  peak_equity: 0,
+  peak_equity: 1000,
   drawdown_pct: 0,
-  available_cash: 0,
+  available_cash: 50,
   last_updated: null,
 }
 
@@ -99,10 +117,24 @@ const defaultRisk: Risk = {
   safe_mode: false,
 }
 
+const defaultWallet: WalletState = {
+  mode: 'testnet',
+  total_equity_usd: 10000.0,
+  assets: [
+    { asset: 'USDT', free: 10000.0, locked: 0, total: 10000.0, price: 1.0, usd_value: 10000.0 },
+    { asset: 'BTC', free: 1.0, locked: 0, total: 1.0, price: 77000.0, usd_value: 77000.0 },
+    { asset: 'ETH', free: 1.0, locked: 0, total: 1.0, price: 2380.0, usd_value: 2380.0 },
+    { asset: 'BNB', free: 1.0, locked: 0, total: 1.0, price: 689.0, usd_value: 689.0 },
+    { asset: 'SOL', free: 6.0, locked: 0, total: 6.0, price: 99.0, usd_value: 594.0 },
+  ]
+}
+
 export const useStore = create<AppStore>((set, get) => ({
-  system: { status: 'idle', mode: 'paper', kill_switch: false, safe_mode: false, last_scan: null },
+  system: { status: 'idle', mode: 'testnet', kill_switch: false, safe_mode: false, last_scan: null },
   portfolio: defaultPortfolio,
   risk: defaultRisk,
+  wallet: defaultWallet,
+  openOrders: [],
   positions: { spot: [], futures: [] },
   scanResults: {},
   decisions: [],
@@ -122,21 +154,45 @@ export const useStore = create<AppStore>((set, get) => ({
   refresh: async () => {
     set({ loading: true, error: null })
     try {
-      const status = await api.getStatus()
+      const [status, walletData, openOrdersData] = await Promise.all([
+        api.getStatus().catch(() => ({})),
+        api.getWallet().catch(() => null),
+        api.getOpenOrders().catch(() => [])
+      ])
+
+      const mode = status?.system?.mode || walletData?.mode || 'testnet'
+      const totalEquity = walletData?.total_equity_usd || status?.portfolio?.total_equity || defaultPortfolio.total_equity
+
       set({
-        system: status.system || {},
-        portfolio: status.portfolio || defaultPortfolio,
-        risk: status.risk || defaultRisk,
-        positions: status.positions || { spot: [], futures: [] },
-        scanResults: status.scan_results || {},
-        scanner: status.scanner || {},
-        health: status.health || {},
-        closedToday: status.closed_today || [],
+        system: status?.system || { status: 'running', mode },
+        portfolio: {
+          ...(status?.portfolio || defaultPortfolio),
+          total_equity: totalEquity
+        },
+        wallet: walletData || defaultWallet,
+        openOrders: openOrdersData || [],
+        risk: status?.risk || defaultRisk,
+        positions: status?.positions || { spot: [], futures: [] },
+        scanResults: status?.scan_results || {},
+        scanner: status?.scanner || {},
+        health: status?.health || {},
+        closedToday: status?.closed_today || [],
         lastRefresh: new Date(),
         loading: false,
       })
     } catch (e: any) {
       set({ error: e.message, loading: false })
+    }
+  },
+
+  refreshWallet: async () => {
+    try {
+      const wallet = await api.getWallet()
+      if (wallet) {
+        set({ wallet })
+      }
+    } catch (e: any) {
+      console.warn('Wallet refresh failed:', e)
     }
   },
 
@@ -209,6 +265,16 @@ export const useStore = create<AppStore>((set, get) => ({
       await get().refresh()
     } catch (e: any) {
       set({ error: e.message })
+    }
+  },
+
+  switchTradingMode: async (mode: string, api_key?: string, secret_key?: string) => {
+    set({ loading: true })
+    try {
+      await api.switchMode(mode, api_key, secret_key)
+      await get().refresh()
+    } catch (e: any) {
+      set({ error: e.message, loading: false })
     }
   },
 

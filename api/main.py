@@ -248,6 +248,101 @@ def get_positions():
         raise HTTPException(503)
     return orchestrator.get_full_status()["positions"]
 
+@app.get("/api/wallet")
+def get_wallet():
+    if not orchestrator:
+        raise HTTPException(503)
+    balances = {}
+    try:
+        if hasattr(orchestrator.executor, "get_account_balances"):
+            balances = orchestrator.executor.get_account_balances()
+    except Exception:
+        pass
+    
+    scan_res = getattr(orchestrator, "_scan_results", {}) or {}
+    items = []
+    total_usd = 0.0
+    
+    for asset, b in balances.items():
+        free = float(b.get("free", 0))
+        locked = float(b.get("locked", 0))
+        total = float(b.get("total", free + locked))
+        price = 1.0
+        if asset in ["USDT", "USD", "USDC", "FDUSD", "BUSD"]:
+            price = 1.0
+        else:
+            sym = f"{asset}USDT"
+            if sym in scan_res and scan_res[sym].get("price", 0) > 0:
+                price = float(scan_res[sym]["price"])
+            else:
+                try:
+                    t = orchestrator.market_data.get_ticker(sym)
+                    price = float(t.get("lastPrice", 0)) if t else 0
+                except Exception:
+                    price = 0
+        
+        usd_val = total * price if price > 0 else 0
+        total_usd += usd_val
+        items.append({
+            "asset": asset,
+            "free": free,
+            "locked": locked,
+            "total": total,
+            "price": price,
+            "usd_value": round(usd_val, 2)
+        })
+    
+    items.sort(key=lambda x: x["usd_value"], reverse=True)
+    return {
+        "mode": state.get("system", {}).get("mode", "paper"),
+        "total_equity_usd": round(total_usd, 2) if total_usd > 0 else 1000.0,
+        "assets": items
+    }
+
+class ModeSwitchPayload(BaseModel):
+    mode: str
+    api_key: Optional[str] = None
+    secret_key: Optional[str] = None
+
+@app.post("/api/mode/switch")
+def switch_mode(payload: ModeSwitchPayload):
+    if not orchestrator:
+        raise HTTPException(503)
+    mode = payload.mode.lower()
+    if mode not in ["paper", "testnet", "live"]:
+        raise HTTPException(400, "Invalid mode")
+    
+    testnet = (mode == "testnet")
+    api_key = payload.api_key or os.getenv("BINANCE_API_KEY", "")
+    secret_key = payload.secret_key or os.getenv("BINANCE_SECRET_KEY", "")
+    
+    orchestrator.set_mode(mode)
+    if hasattr(orchestrator, "executor"):
+        orchestrator.executor.mode = mode
+        orchestrator.executor.testnet = testnet
+        orchestrator.executor.base_url = "https://testnet.binance.vision" if testnet else "https://api.binance.com"
+        orchestrator.executor.futures_url = "https://testnet.binancefuture.com" if testnet else "https://fapi.binance.com"
+        if payload.api_key and payload.secret_key:
+            orchestrator.executor.api_key = payload.api_key
+            orchestrator.executor.secret_key = payload.secret_key
+            orchestrator.executor.session.headers.update({"X-MBX-APIKEY": payload.api_key})
+    
+    state["system"]["mode"] = mode
+    save_state(state)
+    return {"status": "ok", "mode": mode, "testnet": testnet}
+
+@app.get("/api/orders/open")
+def get_open_orders():
+    if not orchestrator:
+        raise HTTPException(503)
+    try:
+        if hasattr(orchestrator.executor, "get_open_orders"):
+            return orchestrator.executor.get_open_orders()
+    except Exception:
+        pass
+    return []
+
+
 @app.get("/api/history")
 def get_history(limit: int = 50, months: int = 1, symbol: str = None, strategy: str = None):
     if not orchestrator:

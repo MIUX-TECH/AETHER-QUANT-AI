@@ -1,142 +1,147 @@
 // src/components/history/HistoryPage.tsx
-
 import React, { useEffect, useState } from 'react'
 import { useStore } from '../../store/useStore'
-import { SectionHeader, PnlDisplay, SignalBadge, EmptyState, fmtPrice, fmtTime } from '../shared'
-import { History, Filter, TrendingUp, TrendingDown } from 'lucide-react'
+import { SectionHeader, StatCard, PnlDisplay, fmt, fmtPrice, fmtPct, fmtTime } from '../shared'
+import { History, RefreshCw, Filter, TrendingUp, TrendingDown, Brain, DollarSign } from 'lucide-react'
 
 export default function HistoryPage() {
   const { history, refreshHistory, loading } = useStore()
-  const [filter, setFilter] = useState<'all' | 'win' | 'loss'>('all')
-  const [symbolFilter, setSymbolFilter] = useState('')
+  const [filterSymbol, setFilterSymbol] = useState('ALL')
 
-  useEffect(() => { refreshHistory() }, [])
+  useEffect(() => {
+    refreshHistory()
+  }, [])
 
-  const filtered = history
-    .filter(t => filter === 'all' || t.result === filter)
-    .filter(t => !symbolFilter || t.symbol?.includes(symbolFilter.toUpperCase()))
-    .sort((a, b) => (b.closed_at || '').localeCompare(a.closed_at || ''))
+  const trades = history || []
+  const filtered = filterSymbol === 'ALL' ? trades : trades.filter(t => t.symbol === filterSymbol)
 
-  const wins = history.filter(t => t.result === 'win').length
-  const losses = history.filter(t => t.result === 'loss').length
-  const winRate = history.length > 0 ? (wins / history.length * 100).toFixed(1) : '0'
-  const totalPnl = history.reduce((s, t) => s + (t.pnl_usdt || 0), 0)
+  // Stats calculation
+  const totalTrades = trades.length
+  const winningTrades = trades.filter(t => (t.realized_pnl || t.pnl || 0) > 0)
+  const winRate = totalTrades > 0 ? (winningTrades.length / totalTrades) * 100 : 0
+  const totalPnl = trades.reduce((sum, t) => sum + Number(t.realized_pnl || t.pnl || 0), 0)
+
+  const symbols = ['ALL', ...Array.from(new Set(trades.map(t => t.symbol).filter(Boolean)))]
 
   return (
     <div className="page">
-      <div className="flex items-center justify-between mb-5">
+      {/* Header */}
+      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div>
-          <h1 style={{ fontSize: 20, fontWeight: 800, letterSpacing: '-0.02em' }}>Jurnal Transaksi</h1>
-          <p style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-            {history.length} trades · Win Rate: {winRate}% · PnL: ${totalPnl.toFixed(2)}
+          <h1 style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <History size={18} style={{ color: 'var(--accent)' }} /> Jurnal Riwayat Transaksi & Order
+          </h1>
+          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
+            Catatan Eksekusi Binance Riil · Audit Maker/Taker Fee & Slippage · Evaluasi AI
           </p>
         </div>
+        <button className="btn btn-ghost btn-sm" onClick={refreshHistory} disabled={loading} style={{ padding: '4px 10px' }}>
+          <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
+          <span>Segarkan</span>
+        </button>
       </div>
 
-      {/* Summary stats */}
-      <div className="grid-4 gap-3 mb-4">
-        {[
-          { label: 'Total Trades', value: history.length },
-          { label: 'Win Rate', value: `${winRate}%` },
-          { label: 'Total PnL', value: `${totalPnl >= 0 ? '+' : ''}$${totalPnl.toFixed(2)}` },
-          { label: 'Avg RR', value: history.length > 0 ? (history.reduce((s, t) => s + (t.rr_ratio || 0), 0) / history.length).toFixed(2) : '—' },
-        ].map(s => (
-          <div key={s.label} className="card p-3">
-            <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>{s.label}</div>
-            <div style={{ fontSize: 16, fontFamily: 'var(--font-mono)', fontWeight: 700 }}>{s.value}</div>
-          </div>
-        ))}
-      </div>
-
-      {/* Filters */}
-      <div className="flex gap-2 mb-4 flex-wrap">
-        {(['all', 'win', 'loss'] as const).map(f => (
-          <button key={f} className={`btn btn-ghost btn-sm ${filter === f ? '' : ''}`}
-            style={filter === f ? { borderColor: 'var(--accent-lime-dim)', color: 'var(--accent-lime)' } : {}}
-            onClick={() => setFilter(f)}>
-            {f === 'all' ? 'All' : f === 'win' ? `✅ Wins (${wins})` : `❌ Losses (${losses})`}
-          </button>
-        ))}
-        <input
-          className="input"
-          style={{ width: 100, padding: '4px 10px', fontSize: 12 }}
-          placeholder="Symbol..."
-          value={symbolFilter}
-          onChange={e => setSymbolFilter(e.target.value)}
+      {/* Stats Cards */}
+      <div className="grid-4 gap-2 mb-3">
+        <StatCard
+          label="Total Transaksi"
+          value={`${totalTrades}`}
+          sub={`${winningTrades.length} Menang · ${totalTrades - winningTrades.length} Kalah`}
+        />
+        <StatCard
+          label="Tingkat Kemenangan"
+          value={`${winRate.toFixed(1)}%`}
+          sub="Rasio win-rate keseluruhan"
+          accent={winRate >= 50}
+        />
+        <StatCard
+          label="Total Realisasi PnL"
+          value={`${totalPnl >= 0 ? '+' : ''}${fmt(totalPnl)}`}
+          sub="Akumulasi laba/rugi bersih"
+          warn={totalPnl < 0}
+        />
+        <StatCard
+          label="Komisi / Fee"
+          value={fmt(trades.reduce((sum, t) => sum + Number(t.fee || 0), 0))}
+          sub="Maker & Taker fee terbayar"
         />
       </div>
 
-      {filtered.length === 0 && (
-        <EmptyState icon={<History size={32} />} message="Belum ada transaksi tercatat." />
-      )}
-
-      <div className="flex flex-col gap-2">
-        {filtered.map((trade: any, i: number) => (
-          <TradeRow key={i} trade={trade} />
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function TradeRow({ trade }: { trade: any }) {
-  const [open, setOpen] = useState(false)
-  const isWin = trade.result === 'win'
-
-  return (
-    <div className="card" style={{ overflow: 'hidden', borderLeft: `3px solid ${isWin ? 'var(--bull)' : 'var(--bear)'}` }}>
-      <div className="flex items-center gap-3 p-3" style={{ cursor: 'pointer' }} onClick={() => setOpen(!open)}>
-        <div style={{ width: 6, height: 6, borderRadius: '50%', background: isWin ? 'var(--bull)' : 'var(--bear)', flexShrink: 0 }} />
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div className="flex items-center gap-2 flex-wrap">
-            <span style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
-              {trade.symbol?.replace('USDT', '')}
-            </span>
-            <span className={`badge ${trade.side === 'BUY' ? 'badge-bull' : 'badge-bear'}`} style={{ fontSize: 9 }}>
-              {trade.side === 'BUY' ? '▲ LONG' : '▼ SHORT'}
-            </span>
-            {trade.leverage > 1 && (
-              <span className="badge badge-warn" style={{ fontSize: 9 }}>{trade.leverage}x</span>
-            )}
-            <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-              {trade.strategy}
-            </span>
-          </div>
-          <div style={{ fontSize: 11, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-            {fmtTime(trade.closed_at || '')} · {trade.close_reason} · held {trade.hold_duration || '?'}
-          </div>
-        </div>
-        <div className="text-right">
-          <PnlDisplay value={trade.pnl_usdt || 0} pct={trade.pnl_pct} size="sm" />
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-            RR: {trade.rr_ratio || '—'}
-          </div>
-        </div>
-      </div>
-
-      {open && (
-        <div style={{ borderTop: '1px solid var(--bg-border)', padding: '12px 16px', background: 'var(--bg-deep)' }}>
-          <div style={{ display: 'flex', gap: 20, flexWrap: 'wrap', fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-            <span>Entry: <strong>{fmtPrice(trade.entry_price)}</strong></span>
-            <span>Exit: <strong>{fmtPrice(trade.close_price)}</strong></span>
-            <span>Size: <strong>${(trade.position_usdt || 0).toFixed(2)}</strong></span>
-            <span>Qty: <strong>{(trade.qty || 0).toFixed(6)}</strong></span>
-            <span>SL was: <strong>{fmtPrice(trade.sl_price)}</strong></span>
-            <span>TP was: <strong>{fmtPrice(trade.tp_price)}</strong></span>
-            <span>Conf: <strong>{((trade.confidence || 0) * 100).toFixed(0)}%</strong></span>
-            <span>Regime: <strong>{trade.regime || '—'}</strong></span>
-            <span>Fee: <strong>${(trade.fee_total || 0).toFixed(4)}</strong></span>
-          </div>
-          {trade.reasoning && (
-            <div style={{ marginTop: 10, padding: 10, background: 'var(--bg-card)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--bg-border)' }}>
-              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>AI Reasoning</div>
-              <pre style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                {trade.reasoning}
-              </pre>
-            </div>
-          )}
+      {/* Filter by symbol */}
+      {symbols.length > 1 && (
+        <div className="flex items-center gap-1.5 mb-3 overflow-x-auto pb-1">
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginRight: 4 }}>Filter Koin:</span>
+          {symbols.map(s => (
+            <button
+              key={s}
+              className={`btn btn-sm ${filterSymbol === s ? 'btn-lime' : 'btn-ghost'}`}
+              onClick={() => setFilterSymbol(s)}
+              style={{ padding: '2px 8px', fontSize: 10 }}
+            >
+              {s}
+            </button>
+          ))}
         </div>
       )}
+
+      {/* Trades Table */}
+      <div className="card p-3">
+        <SectionHeader title={`Riwayat Order (${filtered.length})`} subtitle="Log eksekusi order limit & market" />
+
+        {filtered.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+            Belum ada catatan transaksi. Bot akan mencatat setiap eksekusi order secara otomatis.
+          </div>
+        ) : (
+          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--bg-border)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                  <th style={{ padding: '6px 4px' }}>Waktu</th>
+                  <th style={{ padding: '6px 4px' }}>Simbol</th>
+                  <th style={{ padding: '6px 4px' }}>Tipe</th>
+                  <th style={{ padding: '6px 4px' }}>Arah</th>
+                  <th style={{ padding: '6px 4px' }}>Harga Masuk</th>
+                  <th style={{ padding: '6px 4px' }}>Harga Keluar</th>
+                  <th style={{ padding: '6px 4px' }}>Ukuran</th>
+                  <th style={{ padding: '6px 4px' }}>PnL</th>
+                  <th style={{ padding: '6px 4px' }}>Catatan AI</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((t, i) => {
+                  const pnl = Number(t.realized_pnl || t.pnl || 0)
+                  const pnlPct = Number(t.pnl_pct || 0)
+                  const isBuy = t.side === 'BUY'
+                  return (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 34 }}>
+                      <td style={{ padding: '6px 4px', color: 'var(--text-muted)' }}>{fmtTime(t.closed_at || t.timestamp)}</td>
+                      <td style={{ padding: '6px 4px', fontWeight: 700 }}>{t.symbol}</td>
+                      <td style={{ padding: '6px 4px' }}>
+                        <span className="badge badge-muted" style={{ fontSize: 9 }}>{t.strategy?.toUpperCase() || 'SPOT'}</span>
+                      </td>
+                      <td style={{ padding: '6px 4px' }}>
+                        <span className={`badge ${isBuy ? 'badge-bull' : 'badge-bear'}`} style={{ fontSize: 9 }}>
+                          {t.side || 'BUY'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '6px 4px' }}>${fmtPrice(t.entry_price)}</td>
+                      <td style={{ padding: '6px 4px' }}>${fmtPrice(t.exit_price || t.current_price)}</td>
+                      <td style={{ padding: '6px 4px' }}>{fmt(t.position_usdt || t.margin_used || 0)}</td>
+                      <td style={{ padding: '6px 4px' }}>
+                        <PnlDisplay value={pnl} pct={pnlPct} size="sm" />
+                      </td>
+                      <td style={{ padding: '6px 4px', maxWidth: 180, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>{t.lesson || t.reason || '—'}</span>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

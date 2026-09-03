@@ -112,7 +112,7 @@ class TradingOrchestrator:
         if not self._scan_results:
             return {"status": "no_scan_data", "exits": exits, "entries": []}
 
-        if mode in ["paper", "live"]:
+        if mode in ["paper", "live", "testnet"]:
             for symbol, scan in self._scan_results.items():
                 score = scan.get("score", {})
                 signal = score.get("signal", "WAIT")
@@ -406,9 +406,18 @@ class TradingOrchestrator:
         self.state.setdefault("risk", {})["total_exposure_pct"] = self.portfolio_manager.get_total_exposure_pct()
         portfolio["unrealized_pnl"] = self.portfolio_manager.get_total_unrealized_pnl()
 
+        # Multi-asset live wallet balances
+        wallet_balances = {}
+        try:
+            if hasattr(self.executor, "get_account_balances"):
+                wallet_balances = self.executor.get_account_balances()
+        except Exception:
+            pass
+
         return {
             "system": self.state.get("system", {}),
             "portfolio": portfolio,
+            "wallet": wallet_balances,
             "risk": risk_summary,
             "positions": {
                 "spot": list(self.state.get("positions", {}).get("spot", {}).values()),
@@ -433,10 +442,12 @@ class TradingOrchestrator:
         logger.info(f"Safe mode {'ACTIVATED' if active else 'deactivated'}")
 
     def set_mode(self, mode: str):
-        valid = ["paper", "live", "safe", "analysis"]
+        valid = ["paper", "testnet", "live", "safe", "analysis"]
         if mode not in valid:
             raise ValueError(f"Invalid mode: {mode}")
         self.state["system"]["mode"] = mode
+        if hasattr(self.executor, "mode"):
+            self.executor.mode = mode
         logger.info(f"Trading mode set to: {mode}")
 
     def _determine_strategy(self, scan: Dict) -> str:
