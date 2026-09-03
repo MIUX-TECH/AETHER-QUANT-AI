@@ -14,12 +14,13 @@ import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianG
 export default function DashboardPage() {
   const {
     portfolio, risk, system, scanResults, scanner, closedToday,
-    positions, refresh, triggerScan, loading, setActiveTab
+    positions, wallet, refresh, triggerScan, loading, setActiveTab
   } = useStore()
 
   const allSpot = positions?.spot || []
   const allFutures = positions?.futures || []
   const allPositions = [...allSpot, ...allFutures]
+  const holdings = wallet?.assets?.filter(a => a.asset !== 'USDT' && a.asset !== 'USD' && a.total > 0) || []
 
   useEffect(() => {
     refresh()
@@ -27,7 +28,8 @@ export default function DashboardPage() {
     return () => clearInterval(interval)
   }, [])
 
-  const equity = Number(portfolio?.total_equity || 1000)
+  const totalWalletVal = wallet?.assets?.reduce((acc, a) => acc + (a.usd_value || (a.total * (a.price || 1))), 0) || 0
+  const equity = totalWalletVal > 0 ? totalWalletVal : Number(portfolio?.total_equity || 10000)
   const unrealPnl = Number(portfolio?.unrealized_pnl || 0)
   const realPnl = Number(portfolio?.realized_pnl_today || 0)
   const drawdown = Number(portfolio?.drawdown_pct || 0) * 100
@@ -185,20 +187,19 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Right: Active Positions Overview */}
+        {/* Right: Active Positions / Holdings Overview */}
         <div className="card p-4">
           <div className="flex items-center justify-between mb-2">
-            <SectionHeader title={`Posisi Aktif (${allPositions.length})`} subtitle="Stop loss & Trailing proteksi" />
+            <SectionHeader
+              title={allPositions.length > 0 ? `Posisi Aktif (${allPositions.length})` : `Aset Spot Terbuka (${holdings.length})`}
+              subtitle={allPositions.length > 0 ? "Stop loss & Trailing proteksi" : "Saldo koin aktif di Binance Testnet"}
+            />
             <button className="btn btn-ghost btn-sm" onClick={() => setActiveTab('portfolio')} style={{ fontSize: 11, padding: '2px 8px' }}>
               Detail <ChevronRight size={12} />
             </button>
           </div>
 
-          {allPositions.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: '36px 0', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
-              Tidak ada posisi terbuka saat ini.
-            </div>
-          ) : (
+          {allPositions.length > 0 ? (
             <div className="flex flex-col gap-2 mt-2">
               {allPositions.map((p: any, i: number) => (
                 <div key={i} className="p-3" style={{ background: 'var(--bg-deep)', borderRadius: 8, border: '1px solid var(--bg-border)' }}>
@@ -218,6 +219,32 @@ export default function DashboardPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          ) : holdings.length > 0 ? (
+            <div className="flex flex-col gap-2 mt-2">
+              {holdings.slice(0, 4).map((h: any, i: number) => (
+                <div key={i} className="p-3" style={{ background: 'var(--bg-deep)', borderRadius: 8, border: '1px solid var(--bg-border)' }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center gap-2">
+                      <span style={{ fontSize: 13, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{h.asset} / USDT</span>
+                      <span className="badge badge-bull" style={{ fontSize: 9 }}>
+                        HOLDING ({Number(h.total || 0).toFixed(4)} {h.asset})
+                      </span>
+                    </div>
+                    <span style={{ fontSize: 12, fontWeight: 700, fontFamily: 'var(--font-mono)', color: 'var(--bull)' }}>
+                      ${(h.usd_value || (h.total * h.price)).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between" style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                    <span>Harga Saat Ini: ${Number(h.price || 0).toFixed(2)}</span>
+                    <span>Status: Tersimpan di Akun Spot Testnet</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ textAlign: 'center', padding: '36px 0', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 11 }}>
+              Tidak ada posisi atau aset terbuka saat ini.
             </div>
           )}
         </div>
