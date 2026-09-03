@@ -264,3 +264,6 @@ export function fmtPrice(v: number): string {
   if (v >= 1) return v.toFixed(4)
   return v.toFixed(6)
 }
+
+export { TickerRibbon } from './TickerRibbon'
+

@@ -672,3 +672,64 @@ tbody tr:last-child td { border-bottom: none; }
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
 }
+
+/* === Live Ticker Ribbon === */
+.ticker-ribbon {
+  background: var(--bg-deep);
+  border: 1px solid var(--bg-border);
+  border-radius: var(--radius-sm);
+  padding: 6px 12px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+.ticker-ribbon::-webkit-scrollbar {
+  display: none;
+}
+.ticker-content {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.ticker-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.ticker-sym {
+  font-weight: 700;
+  color: var(--text-primary);
+}
+.ticker-price {
+  color: var(--text-secondary);
+}
+.ticker-change.up {
+  color: var(--bull);
+  font-weight: 600;
+}
+.ticker-change.down {
+  color: var(--bear);
+  font-weight: 600;
+}
+.ticker-signal {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 4px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+.ticker-signal.sig-buy, .ticker-signal.sig-strong_buy {
+  background: rgba(74, 222, 128, 0.15);
+  color: var(--bull);
+}
+.ticker-signal.sig-sell, .ticker-signal.sig-strong_sell {
+  background: rgba(248, 113, 113, 0.15);
+  color: var(--bear);
+}
+.ticker-signal.sig-hold, .ticker-signal.sig-wait, .ticker-signal.sig-reduce {
+  background: rgba(251, 191, 36, 0.15);
+  color: var(--warn);
+}
+
