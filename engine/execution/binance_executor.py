@@ -294,6 +294,7 @@ class BinanceExecutor:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         }
 
+        last_err = None
         for attempt in range(self.max_retries):
             try:
                 if method.upper() == "GET":
@@ -308,11 +309,12 @@ class BinanceExecutor:
                 try:
                     data = r.json()
                 except Exception:
-                    data = {"text": r.text}
+                    data = {"text": r.text, "status_code": r.status_code}
 
                 if r.status_code == 200:
                     return 200, data
 
+                last_err = {"http_status": r.status_code, "body": data}
                 code = data.get("code", 0) if isinstance(data, dict) else 0
                 if code in [-1121, -1100, -2010, -1013]:
                     logger.error(f"Order rejected ({code}): {data}")
@@ -320,12 +322,13 @@ class BinanceExecutor:
 
                 logger.warning(f"{method} {url} attempt {attempt+1} failed ({r.status_code}): {data}")
             except Exception as e:
+                last_err = {"exception": str(e), "type": type(e).__name__}
                 logger.error(f"{method} {url} attempt {attempt+1} exception: {e}")
 
             if attempt < self.max_retries - 1:
                 time.sleep(self.retry_delay * (attempt + 1))
 
-        return 500, {"error": "Max retries exceeded"}
+        return 500, {"error": "Max retries exceeded", "last_error": last_err}
 
     def _signed_post(self, url: str, params: dict, futures: bool = False) -> Dict:
         status, data = self._send_signed("POST", url, params)
