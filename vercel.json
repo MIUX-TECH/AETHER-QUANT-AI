@@ -13,7 +13,7 @@
     },
     {
       "source": "/api/:match*",
-      "destination": "https://aether-quant-ai-api.onrender.com/api/:match*"
+      "destination": "https://aether-quant-api-sg.onrender.com/api/:match*"
     },
     {
       "source": "/(.*)",
