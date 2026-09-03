@@ -464,6 +464,23 @@ def get_candles(symbol: str, interval: str = "1h", limit: int = 100):
     candles = orchestrator.market_data.get_klines(symbol, interval, limit)
     return {"symbol": symbol, "interval": interval, "candles": candles or []}
 
+@app.get("/api/debug/account")
+def debug_account():
+    if not orchestrator:
+        raise HTTPException(503)
+    ex = orchestrator.executor
+    status, data = ex._send_signed("GET", f"{ex.base_url}/api/v3/account")
+    return {
+        "status_code": status,
+        "base_url": ex.base_url,
+        "api_key_set": bool(ex.api_key),
+        "api_key_prefix": ex.api_key[:6] if ex.api_key else None,
+        "secret_key_set": bool(ex.secret_key),
+        "secret_key_prefix": ex.secret_key[:6] if ex.secret_key else None,
+        "time_offset": getattr(ex, "time_offset", 0),
+        "response": data
+    }
+
 # Serve static UI files (built Vite app)
 ui_dist = ROOT / "ui" / "dist"
 if ui_dist.exists():
