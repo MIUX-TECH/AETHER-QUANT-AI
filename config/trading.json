@@ -27,12 +27,21 @@
     "strategies": ["swing", "breakout", "pullback", "rotational"],
     "min_hold_duration_minutes": 60,
     "max_hold_duration_hours": 168,
+    "tp1_buffer_pct": 0.003,
+    "tp1_portion_pct": 0.40,
+    "runner_portion_pct": 0.60,
+    "trailing_rules": {
+      "trending": 0.025,
+      "ranging": 0.012,
+      "volatile": 0.035
+    },
     "tp_pct": 0.05,
     "sl_pct": 0.03,
     "trailing_stop_pct": 0.02,
     "partial_tp_enabled": true,
-    "partial_tp_pct": 0.50,
-    "partial_tp_at_rr": 1.5
+    "partial_tp_pct": 0.40,
+    "partial_tp_at_rr": 1.0,
+    "btc_vault_profit_convert_pct": 0.70
   },
   "futures": {
     "max_leverage": 10,

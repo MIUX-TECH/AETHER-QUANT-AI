@@ -27,7 +27,8 @@ class TradingOrchestrator:
                  memory_service,
                  report_service,
                  config: Dict,
-                 state: Dict):
+                 state: Dict,
+                 ai_client=None):
         self.market_data = market_data
         self.scanner = scanner
         self.risk_manager = risk_manager
@@ -38,6 +39,7 @@ class TradingOrchestrator:
         self.report_service = report_service
         self.config = config
         self.state = state
+        self.ai_client = ai_client
         self.trade_logger = logging.getLogger("trade")
         self.decision_logger = logging.getLogger("decision")
         self._scan_results: Dict = {}
@@ -46,13 +48,18 @@ class TradingOrchestrator:
     def run_scan_cycle(self) -> Dict:
         """
         Full scan cycle:
-        1. Get sentiment
-        2. Scan all symbols
-        3. Update state
-        4. Return results
+        1. Periodic risk recovery check
+        2. Get sentiment
+        3. Scan all symbols
+        4. Update state
+        5. Return results
         """
         if self.state.get("system", {}).get("kill_switch"):
             return {"status": "kill_switch_active"}
+
+        # Periodic check for drawdown recovery to restore normal mode
+        if hasattr(self.risk_manager, "check_risk_recovery"):
+            self.state = self.risk_manager.check_risk_recovery(self.state)
 
         symbols = self.state.get("scanner", {}).get("symbols", ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"])
 
@@ -171,6 +178,30 @@ class TradingOrchestrator:
         if sizing["position_usdt"] < 10:
             return {"executed": False, "reason": "Position too small"}
 
+        # AI Decision Layer Validation (Qwen / Groq Gatekeeper)
+        if self.ai_client and self.ai_client.is_available:
+            regime = scan.get("regime", {}).get("regime", "unknown")
+            bullish_f = score.get("bullish_factors", [])
+            bearish_f = score.get("bearish_factors", [])
+            ai_val = self.ai_client.validate_trade_setup(
+                symbol=symbol,
+                signal=score.get("signal", "BUY"),
+                quant_score=score.get("confidence", 0.68),
+                regime=regime,
+                indicators=scan.get("indicators", {}),
+                bullish_factors=bullish_f,
+                bearish_factors=bearish_f
+            )
+            if not ai_val.get("approved", True):
+                reason = f"AI Rejection ({ai_val.get('reasoning', 'Setup flagged as low quality')})"
+                self._log_decision(symbol, "ai_rejected", score, reason)
+                logger.info(f"🛑 AI GATEKEEPER REJECTED {symbol}: {reason}")
+                return {"executed": False, "reason": reason}
+            else:
+                score["ai_verdict"] = "APPROVE"
+                score["ai_reasoning"] = ai_val.get("reasoning", "Validasi AI disetujui")
+                logger.info(f"🤖 AI APPROVED {symbol}: {score['ai_reasoning']}")
+
         # Execute
         order = self.executor.place_spot_market_buy(symbol, sizing["position_usdt"], current_price)
         if order.get("status") != "FILLED":
@@ -233,6 +264,30 @@ class TradingOrchestrator:
 
         if sizing["position_usdt"] < 10:
             return {"executed": False, "reason": "Futures position too small"}
+
+        # AI Decision Layer Validation for Futures
+        if self.ai_client and self.ai_client.is_available:
+            regime = scan.get("regime", {}).get("regime", "unknown")
+            bullish_f = futures_score.get("bullish_factors", [])
+            bearish_f = futures_score.get("bearish_factors", [])
+            ai_val = self.ai_client.validate_trade_setup(
+                symbol=symbol,
+                signal=futures_score.get("signal", "SHORT" if side == "SELL" else "BUY"),
+                quant_score=futures_score.get("confidence", 0.75),
+                regime=regime,
+                indicators=scan.get("indicators", {}),
+                bullish_factors=bullish_f,
+                bearish_factors=bearish_f
+            )
+            if not ai_val.get("approved", True):
+                reason = f"AI Futures Rejection ({ai_val.get('reasoning', 'Setup flagged as low quality')})"
+                self._log_decision(symbol, "ai_futures_rejected", futures_score, reason)
+                logger.info(f"🛑 AI GATEKEEPER REJECTED FUTURES {symbol}: {reason}")
+                return {"executed": False, "reason": reason}
+            else:
+                futures_score["ai_verdict"] = "APPROVE"
+                futures_score["ai_reasoning"] = ai_val.get("reasoning", "Validasi AI disetujui")
+                logger.info(f"🤖 AI APPROVED FUTURES {symbol}: {futures_score['ai_reasoning']}")
 
         order = self.executor.place_futures_order(
             symbol, side, sizing.get("position_qty", 0),
@@ -311,26 +366,27 @@ class TradingOrchestrator:
 
     def _execute_partial_tp(self, symbol: str, position: Dict,
                               current_price: float, trade_type: str):
-        """Take partial profits."""
-        partial_pct = self.config.get("spot", {}).get("partial_tp_pct", 0.50)
+        """Take TP1 partial profits (40%), raise SL to BEP, and activate 60% runner."""
+        partial_pct = self.config.get("spot", {}).get("partial_tp_pct", 0.40)
         partial_qty = position.get("qty", 0) * partial_pct
 
         order = self.executor.place_spot_market_sell(symbol, partial_qty, current_price)
         if order.get("status") == "FILLED":
             position["qty"] = position.get("qty", 0) * (1 - partial_pct)
             position["partial_tp_taken"] = True
-            # Raise SL to breakeven after partial TP
+            position["runner_active"] = True
+            # Raise SL to breakeven after TP1
             position["sl_price"] = max(
                 position.get("sl_price", 0),
                 position.get("entry_price", 0)
             )
             self.state["positions"][trade_type][symbol] = position
-            self._log_decision(symbol, "partial_tp", {}, f"Partial TP taken at {current_price:.4f}")
-            self.trade_logger.info(f"PARTIAL TP {symbol} | qty={partial_qty:.6f} @ {current_price:.4f}")
+            self._log_decision(symbol, "tp1_partial", {}, f"TP1 taken (40% qty) @ {current_price:.4f} | SL raised to BEP")
+            self.trade_logger.info(f"TP1 HIT {symbol} | closed 40% (qty={partial_qty:.6f}) @ {current_price:.4f} | Runner 60% Active")
 
     def _close_position(self, symbol: str, position: Dict, reason: str,
                          price: float, trade_type: str) -> Optional[Dict]:
-        """Close a position and record the trade."""
+        """Close a position, record the trade, and auto-accumulate BTC Vault from realized profit."""
         qty = position.get("qty", 0)
         side = position.get("side", "BUY")
         close_side = "SELL" if side == "BUY" else "BUY"
@@ -360,16 +416,39 @@ class TradingOrchestrator:
         # Update risk state
         self.state = self.risk_manager.update_risk_state(self.state, closed)
 
-        # Update portfolio equity (paper trading)
-        if self.state.get("system", {}).get("mode") == "paper":
-            pnl = closed.get("pnl_usdt", 0)
-            self.state["portfolio"]["total_equity"] = max(0, self.state["portfolio"]["total_equity"] + pnl)
-            self.state["portfolio"]["realized_pnl_today"] = (
-                self.state["portfolio"].get("realized_pnl_today", 0) + pnl
-            )
-
         pnl_val = float(closed.get('pnl_usdt', 0))
         pnl_pct_val = float(closed.get('pnl_pct', 0))
+
+        # Update portfolio equity (paper trading)
+        if self.state.get("system", {}).get("mode") == "paper":
+            self.state["portfolio"]["total_equity"] = max(0, self.state["portfolio"]["total_equity"] + pnl_val)
+            self.state["portfolio"]["realized_pnl_today"] = (
+                self.state["portfolio"].get("realized_pnl_today", 0) + pnl_val
+            )
+
+        # BTC Treasury Accumulation (70% of realized profits converted to BTC Spot)
+        if pnl_val > 0 and symbol != "BTCUSDT":
+            btc_convert_pct = self.config.get("spot", {}).get("btc_vault_profit_convert_pct", 0.70)
+            btc_alloc_usdt = round(pnl_val * btc_convert_pct, 2)
+            if btc_alloc_usdt >= 5.0:
+                try:
+                    btc_price = self.market_data.get_price("BTCUSDT") or 67000.0
+                    btc_buy = self.executor.place_spot_market_buy("BTCUSDT", btc_alloc_usdt, btc_price)
+                    if btc_buy.get("status") == "FILLED":
+                        bought_btc = float(btc_buy.get("executedQty", 0)) or (btc_alloc_usdt / btc_price)
+                        vault = self.state.setdefault("portfolio", {}).setdefault("btc_vault", {})
+                        vault["btc_stack"] = round(vault.get("btc_stack", 0.0) + bought_btc, 8)
+                        vault["total_invested_usdt"] = round(vault.get("total_invested_usdt", 0.0) + btc_alloc_usdt, 2)
+                        vault["last_accumulated_at"] = datetime.utcnow().isoformat()
+                        self._log_decision("BTCUSDT", "vault_accumulation", {},
+                                           f"Accumulated +{bought_btc:.8f} BTC (${btc_alloc_usdt} USDT from 70% profit of {symbol})")
+                        self.trade_logger.info(
+                            f"₿ BTC VAULT ACCUMULATION | +{bought_btc:.8f} BTC | "
+                            f"cost=${btc_alloc_usdt:.2f} USDT | source={symbol} (+${pnl_val:.2f})"
+                        )
+                except Exception as e:
+                    logger.warning(f"BTC Vault accumulation buy failed: {e}")
+
         self._log_decision(symbol, f"exit_{reason}", {}, f"Closed @ {float(price):.4f} | PnL: {pnl_val:.2f}")
         self.trade_logger.info(
             f"CLOSE {trade_type.upper()} {side} {symbol} | reason={reason} | "

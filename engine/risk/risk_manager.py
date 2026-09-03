@@ -177,18 +177,43 @@ class RiskManager:
             risk_state["cooldown_until"] = cooldown_until.isoformat()
             logger.warning(f"Loss streak {streak} — entering cooldown for {cooldown_mins}m")
 
-        # Capital preservation mode
+        # Capital preservation & Risk-Off mode with Auto-Recovery
         portfolio = state.get("portfolio", {})
         drawdown = portfolio.get("drawdown_pct", 0)
-        if drawdown >= self.risk_cfg.get("risk_off_mode_threshold", 0.10):
-            risk_state["risk_off_active"] = True
-            logger.warning(f"Drawdown {drawdown:.1%} — risk-off mode activated")
+        risk_off_thresh = self.risk_cfg.get("risk_off_mode_threshold", 0.10)
+        cap_pres_thresh = self.risk_cfg.get("max_drawdown_pct", 0.15) * 0.8  # 12%
 
-        if drawdown >= self.risk_cfg.get("max_drawdown_pct", 0.15) * 0.8:
+        if drawdown >= cap_pres_thresh:
+            if not risk_state.get("capital_preservation_mode"):
+                logger.warning(f"Drawdown {drawdown:.1%} — Capital preservation mode activated")
             risk_state["capital_preservation_mode"] = True
-            logger.warning("Capital preservation mode activated")
+            risk_state["risk_off_active"] = True
+        elif drawdown >= risk_off_thresh:
+            if not risk_state.get("risk_off_active"):
+                logger.warning(f"Drawdown {drawdown:.1%} — Risk-off mode activated")
+            risk_state["risk_off_active"] = True
+            if risk_state.get("capital_preservation_mode"):
+                risk_state["capital_preservation_mode"] = False
+                logger.info(f"Drawdown recovered to {drawdown:.1%} — Capital preservation deactivated, remaining in Risk-Off")
+        elif drawdown < 0.08:  # Hysteresis recovery when drawdown drops below 8%
+            if risk_state.get("risk_off_active") or risk_state.get("capital_preservation_mode"):
+                logger.info(f"✅ RISK RECOVERY: Drawdown recovered to {drawdown:.1%} (<8%) — Normal trading mode restored")
+            risk_state["risk_off_active"] = False
+            risk_state["capital_preservation_mode"] = False
 
         state["risk"] = risk_state
+        return state
+
+    def check_risk_recovery(self, state: Dict) -> Dict:
+        """Periodic check to auto-recover risk state if equity improved."""
+        risk_state = state.get("risk", {})
+        portfolio = state.get("portfolio", {})
+        drawdown = portfolio.get("drawdown_pct", 0)
+        if drawdown < 0.08 and (risk_state.get("risk_off_active") or risk_state.get("capital_preservation_mode")):
+            logger.info(f"✅ RISK RECOVERY: Periodic check confirmed drawdown {drawdown:.1%} — Normal mode restored")
+            risk_state["risk_off_active"] = False
+            risk_state["capital_preservation_mode"] = False
+            state["risk"] = risk_state
         return state
 
     def compute_drawdown(self, current_equity: float, peak_equity: float) -> float:

@@ -68,6 +68,7 @@ from engine.execution.binance_executor import BinanceExecutor
 from engine.sentiment.news_service import NewsService
 from engine.learning.memory_service import MemoryService
 from engine.reporting.report_service import ReportService
+from engine.ai.groq_client import GroqAIClient
 from engine.trader import TradingOrchestrator
 from engine.scheduler.scheduler import Scheduler
 
@@ -163,11 +164,15 @@ def boot_system():
         os.getenv("NEWSAPI_KEY", "")
     )
     report_svc = ReportService(app_config)
+    ai_client = GroqAIClient(
+        api_key=os.getenv("GROQ_API_KEY", ""),
+        model=os.getenv("GROQ_MODEL", "qwen/qwen3.6-27b")
+    )
 
     orchestrator = TradingOrchestrator(
         market_data, scanner, risk_mgr, portfolio_mgr,
         executor, news_svc, memory_svc, report_svc,
-        app_config, state
+        app_config, state, ai_client=ai_client
     )
 
     # Setup scheduler

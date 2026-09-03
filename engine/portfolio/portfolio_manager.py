@@ -179,7 +179,7 @@ class PortfolioManager:
         return position
 
     def update_position_pnl(self, position: Dict, current_price: float) -> Dict:
-        """Update position with current price and calculate PnL."""
+        """Update position with current price, adaptive trailing stop per regime, and calculate PnL."""
         entry = position.get("entry_price", 0)
         qty = position.get("qty", 0)
         side = position.get("side", "BUY")
@@ -196,15 +196,35 @@ class PortfolioManager:
         pnl_usdt = pnl_pct * position.get("position_usdt", 0) * leverage
         current_value = position.get("position_usdt", 0) + pnl_usdt
 
-        # Update trailing stop
+        # Determine adaptive trailing percentage based on market regime
+        regime = position.get("regime", "ranging")
+        trail_rules = self.config.get("spot", {}).get("trailing_rules", {})
+        if regime in ["trending_up", "trending_down"]:
+            trail_pct = trail_rules.get("trending", 0.025)
+        elif regime in ["ranging", "compression"]:
+            trail_pct = trail_rules.get("ranging", 0.012)
+        elif regime in ["expansion", "panic", "euphoria"]:
+            trail_pct = trail_rules.get("volatile", 0.035)
+        else:
+            trail_pct = position.get("trailing_stop_pct", 0.02)
+
+        position["trailing_stop_pct"] = trail_pct
+
+        # Update high/low watermark & trailing stop price
         if side == "BUY":
             position["highest_price"] = max(position.get("highest_price", entry), current_price)
-            trail_pct = position.get("trailing_stop_pct", 0.02)
-            if trail_pct > 0:
+            if position.get("partial_tp_taken", False) or position.get("runner_active", False):
                 new_trail = position["highest_price"] * (1 - trail_pct)
                 old_trail = position.get("trailing_stop_price")
                 if old_trail is None or new_trail > old_trail:
-                    position["trailing_stop_price"] = new_trail
+                    position["trailing_stop_price"] = round(new_trail, 6)
+        else:
+            position["lowest_price"] = min(position.get("lowest_price", entry), current_price)
+            if position.get("partial_tp_taken", False) or position.get("runner_active", False):
+                new_trail = position["lowest_price"] * (1 + trail_pct)
+                old_trail = position.get("trailing_stop_price")
+                if old_trail is None or new_trail < old_trail:
+                    position["trailing_stop_price"] = round(new_trail, 6)
 
         position.update({
             "current_price": current_price,
@@ -225,31 +245,45 @@ class PortfolioManager:
         if side == "BUY":
             if sl > 0 and current_price <= sl:
                 return True, "stop_loss"
-            if tp > 0 and current_price >= tp:
+            if tp > 0 and current_price >= tp and not position.get("partial_tp_taken"):
                 return True, "take_profit"
             if trail and current_price <= trail:
                 return True, "trailing_stop"
         else:
             if sl > 0 and current_price >= sl:
                 return True, "stop_loss"
-            if tp > 0 and current_price <= tp:
+            if tp > 0 and current_price <= tp and not position.get("partial_tp_taken"):
                 return True, "take_profit"
+            if trail and current_price >= trail:
+                return True, "trailing_stop"
 
         return False, "hold"
 
     def check_partial_tp(self, position: Dict, current_price: float) -> bool:
-        """Check if partial TP should be taken."""
+        """Check if TP1 (40% BE+fee buffer or R:R >= 1.0) should be taken."""
         if position.get("partial_tp_taken"):
             return False
         entry = position.get("entry_price", 0)
-        tp = position.get("tp_price", 0)
-        rr = self.config.get("spot", {}).get("partial_tp_at_rr", 1.5)
-        sl = position.get("sl_price", 0)
-        if entry <= 0 or sl <= 0:
+        if entry <= 0:
             return False
-        risk = entry - sl
-        partial_target = entry + risk * rr
-        return current_price >= partial_target and not position.get("partial_tp_taken")
+
+        side = position.get("side", "BUY")
+        buffer_pct = self.config.get("spot", {}).get("tp1_buffer_pct", 0.003)
+        sl = position.get("sl_price", 0)
+
+        if side == "BUY":
+            tp1_target = entry * (1 + buffer_pct)
+            # If SL is defined, also allow R:R >= 1.0 target
+            if sl > 0 and sl < entry:
+                risk = entry - sl
+                tp1_target = min(tp1_target, entry + risk)
+            return current_price >= tp1_target
+        else:
+            tp1_target = entry * (1 - buffer_pct)
+            if sl > 0 and sl > entry:
+                risk = sl - entry
+                tp1_target = max(tp1_target, entry - risk)
+            return current_price <= tp1_target
 
     def close_position(self, position: Dict, close_price: float, reason: str) -> Dict:
         """Create a closed trade record."""
