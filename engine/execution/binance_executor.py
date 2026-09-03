@@ -45,7 +45,8 @@ class BinanceExecutor:
     def _sync_time(self):
         """Sync millisecond time offset with Binance server time."""
         try:
-            r = requests.get(f"{self.base_url}/api/v3/time", timeout=3)
+            headers = {"User-Agent": "Mozilla/5.0"}
+            r = requests.get(f"{self.base_url}/api/v3/time", headers=headers, timeout=5)
             if r.status_code == 200:
                 server_time = r.json().get("serverTime", 0)
                 local_time = int(time.time() * 1000)
@@ -288,16 +289,19 @@ class BinanceExecutor:
         query = urllib.parse.urlencode(sorted(p.items()))
         sig = hmac.new(self.secret_key.encode("utf-8"), query.encode("utf-8"), hashlib.sha256).hexdigest()
         full_url = f"{url}?{query}&signature={sig}"
-        self.session.headers["X-MBX-APIKEY"] = self.api_key
+        headers = {
+            "X-MBX-APIKEY": self.api_key.strip(),
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        }
 
         for attempt in range(self.max_retries):
             try:
                 if method.upper() == "GET":
-                    r = self.session.get(full_url, timeout=10)
+                    r = self.session.get(full_url, headers=headers, timeout=10)
                 elif method.upper() == "POST":
-                    r = self.session.post(full_url, timeout=10)
+                    r = self.session.post(full_url, headers=headers, timeout=10)
                 elif method.upper() == "DELETE":
-                    r = self.session.delete(full_url, timeout=10)
+                    r = self.session.delete(full_url, headers=headers, timeout=10)
                 else:
                     raise ValueError(f"Unsupported HTTP method: {method}")
 
