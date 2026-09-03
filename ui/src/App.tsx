@@ -1,124 +1,278 @@
-// src/App.tsx — Main application shell with navigation and routing
-
-import React, { useEffect } from 'react'
+// src/App.tsx — Main application shell with unified top header and routing
+import React, { useEffect, useState } from 'react'
 import { useStore } from './store/useStore'
 import Navigation from './components/shared/Navigation'
 import DashboardPage from './components/dashboard/DashboardPage'
 import ScannerPage from './components/scanner/ScannerPage'
-import PortfolioPage from './components/portfolio/PortfolioPage'
 import PositionsPage from './components/positions/PositionsPage'
+import PortfolioPage from './components/portfolio/PortfolioPage'
 import HistoryPage from './components/history/HistoryPage'
-import ReportsPage from './components/reports/ReportsPage'
 import AIDecisionsPage from './components/ai/AIDecisionsPage'
-import NewsPage from './components/ai/NewsPage'
 import MemoryPage from './components/memory/MemoryPage'
 import SettingsPage from './components/settings/SettingsPage'
+import {
+  Lock, Unlock, RefreshCw, Zap, ShieldAlert, ChevronDown,
+  Coins, TrendingUp, AlertTriangle, ShieldCheck
+} from 'lucide-react'
+import { api, getAdminToken, setAdminToken } from './utils/api'
 
 const PAGES: Record<string, React.ComponentType> = {
   dashboard: DashboardPage,
   scanner: ScannerPage,
-  portfolio: PortfolioPage,
   positions: PositionsPage,
+  portfolio: PortfolioPage,
   history: HistoryPage,
-  reports: ReportsPage,
   ai: AIDecisionsPage,
-  news: NewsPage,
   memory: MemoryPage,
   settings: SettingsPage,
 }
 
 export default function App() {
-  const { activeTab, refresh, system, portfolio, risk, scanner } = useStore()
+  const { activeTab, refresh, system, portfolio, risk, wallet, switchTradingMode, triggerScan, loading } = useStore()
+  const [showTokenModal, setShowTokenModal] = useState(false)
+  const [tokenInput, setTokenInput] = useState(getAdminToken())
+  const [isUnlocked, setIsUnlocked] = useState(false)
+  const [tokenChecking, setTokenChecking] = useState(false)
+  const [showModeModal, setShowModeModal] = useState(false)
 
   useEffect(() => {
     refresh()
+    checkAuth(getAdminToken())
+    const interval = setInterval(refresh, 15000)
+    return () => clearInterval(interval)
   }, [])
+
+  const checkAuth = async (t: string) => {
+    setTokenChecking(true)
+    try {
+      await api.verifyAdminToken(t)
+      setIsUnlocked(true)
+      setAdminToken(t)
+    } catch {
+      setIsUnlocked(false)
+    } finally {
+      setTokenChecking(false)
+    }
+  }
+
+  const handleSaveToken = async () => {
+    setTokenChecking(true)
+    try {
+      await api.verifyAdminToken(tokenInput)
+      setIsUnlocked(true)
+      setAdminToken(tokenInput)
+      setShowTokenModal(false)
+    } catch (e: any) {
+      alert(`Master Token Salah: ${e.message}`)
+      setIsUnlocked(false)
+    } finally {
+      setTokenChecking(false)
+    }
+  }
 
   const PageComponent = PAGES[activeTab] || DashboardPage
 
-  const equity = portfolio?.total_equity || 0
-  const regime = scanner?.market_regime || system?.status || '—'
-  const lastScan = system?.last_scan ? new Date(system.last_scan).toLocaleTimeString() : '—'
+  const totalEquity = wallet?.total_equity_usd || portfolio?.total_equity || 1000
+  const unrealPnl = portfolio?.unrealized_pnl || 0
+  const realToday = portfolio?.realized_pnl_today || 0
+  const currentMode = system?.mode || 'testnet'
+
+  // BTC price live from assets
+  const btcPrice = wallet?.assets?.find(a => a.asset === 'BTC')?.price || 81500
+  const ethPrice = wallet?.assets?.find(a => a.asset === 'ETH')?.price || 2850
+  const solPrice = wallet?.assets?.find(a => a.asset === 'SOL')?.price || 142
 
   return (
     <div className="app-shell">
+      {/* Sidebar Navigation */}
       <Navigation />
 
-      {/* Wrapper so top-bar + main are vertical inside the flex content area */}
+      {/* Main Content Area */}
       <div className="main-content">
-        {/* Top status bar - always informative, mobile friendly */}
-        <header className="top-bar">
-          <div className="top-bar-content">
-            <div className="top-bar-left">
-              <div className="logo-small">◈</div>
-              <div className="status-pills">
-                <span className={`pill mode-${system?.mode || 'paper'}`}>{(system?.mode || 'paper').toUpperCase() === 'PAPER' ? 'SIMULASI' : (system?.mode || 'paper').toUpperCase()}</span>
-                <span className="pill regime">{regime}</span>
-              </div>
+        {/* UNIFIED SINGLE TOP HEADER */}
+        <header className="unified-header">
+          {/* Left: Brand & Live Tickers */}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--bull)', boxShadow: '0 0 8px var(--bull)' }} />
+              <span className="mono font-bold" style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: '0.04em' }}>
+                AETHER
+              </span>
             </div>
 
-            <div className="top-bar-center">
-              <div className="equity">
-                ${equity.toFixed(2)}
-                <span className="pnl"> {portfolio?.unrealized_pnl >= 0 ? '+' : ''}{(portfolio?.unrealized_pnl || 0).toFixed(2)}</span>
-              </div>
+            {/* Quick Live Prices (Desktop / Tablet) */}
+            <div className="hidden sm:flex items-center gap-2.5 mono" style={{ fontSize: 10, color: 'var(--text-secondary)' }}>
+              <span style={{ color: '#00F0FF' }}>BTC ${btcPrice >= 1000 ? (btcPrice/1000).toFixed(1) + 'k' : btcPrice.toFixed(0)}</span>
+              <span>ETH ${ethPrice.toFixed(0)}</span>
+              <span>SOL ${solPrice.toFixed(1)}</span>
+            </div>
+          </div>
+
+          {/* Center: Live Mode Badge with Click-to-Switch */}
+          <div className="flex items-center gap-2">
+            <button
+              className="badge cursor-pointer transition-all"
+              style={{
+                background: currentMode === 'live' ? 'rgba(248, 113, 113, 0.15)' : currentMode === 'testnet' ? 'rgba(0, 240, 255, 0.15)' : 'rgba(163, 230, 53, 0.15)',
+                color: currentMode === 'live' ? 'var(--bear)' : currentMode === 'testnet' ? '#00F0FF' : 'var(--accent)',
+                border: currentMode === 'live' ? '1px solid var(--bear-border)' : currentMode === 'testnet' ? '1px solid rgba(0, 240, 255, 0.3)' : '1px solid rgba(163, 230, 53, 0.3)',
+                padding: '3px 8px'
+              }}
+              onClick={() => setShowModeModal(true)}
+              title="Klik untuk ganti mode trading"
+            >
+              <span style={{ width: 5, height: 5, borderRadius: '50%', background: currentMode === 'live' ? 'var(--bear)' : currentMode === 'testnet' ? '#00F0FF' : 'var(--accent)' }} />
+              <span>{currentMode === 'live' ? 'MAINNET LIVE' : currentMode === 'testnet' ? 'BINANCE TESTNET' : 'PAPER TRADING'}</span>
+              <ChevronDown size={10} />
+            </button>
+          </div>
+
+          {/* Right: Equity, Token Guard & Actions */}
+          <div className="flex items-center gap-2.5">
+            {/* Total Equity Pill */}
+            <div className="flex items-center gap-1.5 mono" style={{ fontSize: 11 }}>
+              <span style={{ color: 'var(--text-muted)' }} className="hidden sm:inline">Valuasi:</span>
+              <span style={{ fontWeight: 800, color: 'var(--text-primary)' }}>
+                ${totalEquity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </span>
+              <span style={{ fontSize: 10, color: unrealPnl >= 0 ? 'var(--bull)' : 'var(--bear)' }} className="hidden md:inline">
+                ({unrealPnl >= 0 ? '+' : ''}{unrealPnl.toFixed(2)})
+              </span>
             </div>
 
-            <div className="top-bar-right">
-              <button className="btn btn-ghost btn-sm" onClick={() => refresh()}>⟳</button>
-              <span className="last-scan mono">Terakhir {lastScan}</span>
-            </div>
+            {/* Master Token Guard Lock */}
+            <button
+              className="btn btn-ghost btn-xs"
+              onClick={() => setShowTokenModal(true)}
+              style={{
+                padding: '3px 7px',
+                borderColor: isUnlocked ? 'rgba(74, 222, 128, 0.3)' : 'rgba(251, 191, 36, 0.3)',
+                color: isUnlocked ? 'var(--bull)' : 'var(--warn)'
+              }}
+              title={isUnlocked ? 'Master Token Terotentikasi' : 'Master Token Terkunci'}
+            >
+              {isUnlocked ? <Unlock size={11} /> : <Lock size={11} />}
+              <span className="hidden sm:inline" style={{ fontSize: 9.5 }}>{isUnlocked ? 'ADMIN' : 'LOCK'}</span>
+            </button>
+
+            {/* Quick Refresh */}
+            <button
+              className="btn btn-ghost btn-xs"
+              onClick={refresh}
+              disabled={loading}
+              style={{ padding: '3px 6px' }}
+              title="Segarkan Data"
+            >
+              <RefreshCw size={11} className={loading ? 'animate-spin' : ''} />
+            </button>
           </div>
         </header>
 
-        <main className="app-main">
+        {/* Dynamic Page Viewport */}
+        <main className="page-viewport">
           <div className="page-container">
             <PageComponent />
           </div>
         </main>
       </div>
 
-      <style>{`
-        /* Modern polished inline styles (complements globals.css) */
+      {/* MASTER TOKEN UNLOCK MODAL */}
+      {showTokenModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16
+          }}
+          onClick={() => setShowTokenModal(false)}
+        >
+          <div className="card p-4" style={{ maxWidth: 380, width: '100%' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3 border-b border-border pb-2">
+              <div className="flex items-center gap-2">
+                <ShieldCheck size={16} style={{ color: 'var(--accent)' }} />
+                <h3 style={{ fontSize: 13, fontWeight: 800 }}>Master Admin Token Guard</h3>
+              </div>
+              <button className="btn btn-ghost btn-xs" onClick={() => setShowTokenModal(false)}>✕</button>
+            </div>
 
-        .sidebar-logo {
-          display: flex; align-items: center; gap: 12px;
-          padding: 20px 18px 16px; border-bottom: 1px solid var(--bg-border);
-        }
-        .logo-mark {
-          width: 34px; height: 34px; background: var(--accent-glow);
-          border: 1px solid var(--bg-border2); border-radius: 10px;
-          display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-        }
-        .sidebar-nav { flex:1; overflow-y:auto; padding:10px 10px; display:flex; flex-direction:column; gap:4px; }
-        .sidebar-item {
-          display:flex; align-items:center; gap:12px; padding:10px 14px;
-          border-radius:12px; border:none; background:transparent;
-          color:var(--text-secondary); font-family:var(--font-ui); font-size:14px; font-weight:500;
-          cursor:pointer; transition:all .2s; width:100%; text-align:left;
-        }
-        .sidebar-item:hover { background:var(--bg-hover); color:var(--text-primary); }
-        .sidebar-item.active { background:var(--bg-card2); color:var(--accent); }
-        .sidebar-footer { padding:16px 18px; border-top:1px solid var(--bg-border); font-size:12px; }
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginBottom: 10 }}>
+              Masukkan Master Token Admin untuk membuka hak akses eksekusi order, modifikasi parameter risiko, dan kontrol sistem.
+            </p>
 
-        .app-main { flex:1; overflow:hidden; display:flex; flex-direction:column; }
-        .page-container { flex:1; overflow-y:auto; padding:0; background:var(--bg-void); }
-        .page { padding:24px 18px 110px; max-width:1080px; margin:0 auto; }
+            <input
+              type="password"
+              placeholder="Masukkan Master Token..."
+              value={tokenInput}
+              onChange={e => setTokenInput(e.target.value)}
+              className="w-full p-2 rounded mb-3 mono"
+              style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 12, outline: 'none' }}
+            />
 
-        /* Sleek modern mobile nav (in case inline overrides) */
-        .mobile-nav-item { font-size:10px; gap:3px; padding:7px 3px; border-radius:999px; min-height:48px; }
-        .mobile-nav-item.active { color:var(--accent); background:var(--bg-card2); }
+            <div className="flex justify-end gap-2">
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowTokenModal(false)}>Batal</button>
+              <button className="btn btn-lime btn-sm" onClick={handleSaveToken} disabled={tokenChecking}>
+                {tokenChecking ? 'Memeriksa...' : 'Buka Kunci'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
-        @media (max-width: 768px) {
-          .page { padding:16px 12px 105px; }
-        }
-        @media (max-width: 420px) {
-          .page { padding:12px 10px 100px; }
-          .top-bar { padding:6px 10px; }
-        }
+      {/* MODE SWITCHER MODAL */}
+      {showModeModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16
+          }}
+          onClick={() => setShowModeModal(false)}
+        >
+          <div className="card p-4" style={{ maxWidth: 420, width: '100%' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3 border-b border-border pb-2">
+              <h3 style={{ fontSize: 14, fontWeight: 800 }}>Pilih Lingkungan Eksekusi Trading</h3>
+              <button className="btn btn-ghost btn-xs" onClick={() => setShowModeModal(false)}>✕</button>
+            </div>
 
-        @keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-      `}</style>
+            <div className="flex flex-col gap-2 mb-3">
+              {[
+                { id: 'paper', title: '🟢 Paper Trading', desc: 'Simulasi harga real-time tanpa resiko dana.', color: 'var(--bull)' },
+                { id: 'testnet', title: '🔵 Binance Testnet', desc: 'Order live di Binance Testnet dengan saldo virtual.', color: '#00F0FF' },
+                { id: 'live', title: '🔴 Binance Mainnet Live', desc: 'Order riil dengan dana uang sungguhan di akun Binance Anda.', color: 'var(--bear)' },
+              ].map(m => (
+                <button
+                  key={m.id}
+                  className="w-full text-left p-2.5 rounded transition-all flex items-center justify-between"
+                  style={{
+                    background: currentMode === m.id ? 'var(--bg-card2)' : 'var(--bg-deep)',
+                    border: currentMode === m.id ? `1px solid ${m.color}` : '1px solid var(--bg-border)',
+                    cursor: 'pointer'
+                  }}
+                  onClick={() => { switchTradingMode(m.id); setShowModeModal(false); }}
+                >
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-primary)' }}>{m.title}</div>
+                    <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{m.desc}</div>
+                  </div>
+                  {currentMode === m.id && <span className="badge badge-lime" style={{ fontSize: 8 }}>AKTIF</span>}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

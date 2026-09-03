@@ -13,7 +13,7 @@ import { PieChart as RPieChart, Pie, Cell, Tooltip, ResponsiveContainer } from '
 export default function PortfolioPage() {
   const { portfolio, wallet, positions, risk, system, refresh, loading } = useStore()
   const [alloc, setAlloc] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<'balances' | 'vault' | 'deposits' | 'withdrawals' | 'transfers' | 'allocations'>('balances')
+  const [activeTab, setActiveTab] = useState<'balances' | 'deposits' | 'withdrawals' | 'transfers' | 'allocations'>('balances')
   const [deposits, setDeposits] = useState<any[]>([])
   const [withdrawals, setWithdrawals] = useState<any[]>([])
   const [transfers, setTransfers] = useState<any[]>([])
@@ -21,22 +21,16 @@ export default function PortfolioPage() {
 
   useEffect(() => {
     refresh()
-    api.getPortfolio().then(r => setAlloc(r?.allocations)).catch(() => null)
     loadSapiData()
-    const interval = setInterval(() => {
-      refresh()
-      api.getPortfolio().then(r => setAlloc(r?.allocations)).catch(() => null)
-    }, 20000)
-    return () => clearInterval(interval)
   }, [])
 
   const loadSapiData = async () => {
     setHistoryLoading(true)
     try {
       const [dep, wd, tr] = await Promise.all([
-        api.getDeposits(15).catch(() => []),
-        api.getWithdrawals(15).catch(() => []),
-        api.getTransfers(15).catch(() => [])
+        api.getDeposits(20).catch(() => []),
+        api.getWithdrawals(20).catch(() => []),
+        api.getTransfers(20).catch(() => [])
       ])
       setDeposits(Array.isArray(dep) ? dep : [])
       setWithdrawals(Array.isArray(wd) ? wd : [])
@@ -51,12 +45,9 @@ export default function PortfolioPage() {
   const unrealized = Number(portfolio?.unrealized_pnl || 0)
   const realizedToday = Number(portfolio?.realized_pnl_today || 0)
   const drawdown = Number(portfolio?.drawdown_pct || 0) * 100
-  const peakEquity = Number(portfolio?.peak_equity || totalEquityUSD)
 
   const allSpot = positions?.spot || []
   const allFutures = positions?.futures || []
-
-  // Deployed vs free cash
   const deployedSpot = allSpot.reduce((sum: number, p: any) => sum + Number(p.position_usdt || p.cost || 0), 0)
   const deployedFutures = allFutures.reduce((sum: number, p: any) => sum + Number(p.margin_used || p.margin || 0), 0)
   const totalDeployed = deployedSpot + deployedFutures
@@ -70,7 +61,6 @@ export default function PortfolioPage() {
   const btcPrice = Number(assets.find(a => a.asset === 'BTC')?.price || 81500)
   const btcVaultValUSD = btcStack * btcPrice
   const btcInvestedUSD = Number(btcVault.total_invested_usdt || 0)
-  const btcProfitUSD = btcVaultValUSD - btcInvestedUSD
 
   // Pie chart breakdown
   const colors = ['#A3E635', '#00F0FF', '#60A5FA', '#F59E0B', '#A855F7', '#EC4899', '#64748B']
@@ -81,36 +71,39 @@ export default function PortfolioPage() {
   })).filter(d => d.value > 0.5)
 
   return (
-    <div className="page pb-12">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+    <div className="flex flex-col gap-3">
+      {/* Top Header */}
+      <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <h1 style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Briefcase size={18} style={{ color: 'var(--accent)' }} /> Portofolio & Rekonsiliasi Binance
-          </h1>
-          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
-            Agregasi Saldo Dompet Riil · BTC Treasury Vault · Riwayat Mutasi SAPI
+          <h2 style={{ fontSize: 16, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
+            <Briefcase size={16} style={{ color: 'var(--accent)' }} /> Portofolio & Rekonsiliasi Binance
+          </h2>
+          <p style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+            Saldo Multi-Aset Riil · BTC Treasury Vault · Riwayat Mutasi SAPI
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <button className="btn btn-ghost btn-sm" onClick={() => { refresh(); loadSapiData(); }} disabled={loading || historyLoading} style={{ padding: '4px 10px' }}>
-            <RefreshCw size={12} className={loading || historyLoading ? 'animate-spin' : ''} />
-            <span>Sinkronkan Data</span>
-          </button>
-        </div>
+        <button
+          className="btn btn-ghost btn-xs"
+          onClick={() => { refresh(); loadSapiData(); }}
+          disabled={loading || historyLoading}
+          style={{ padding: '3px 8px' }}
+        >
+          <RefreshCw size={11} className={loading || historyLoading ? 'animate-spin' : ''} />
+          <span>Sinkron</span>
+        </button>
       </div>
 
-      {/* Hero Valuation Banner & BTC Vault Widget */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+      {/* 3 Overview Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
         {/* Total Equity Card */}
-        <div className="card card-lime p-3" style={{ position: 'relative', overflow: 'hidden' }}>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+        <div className="card card-lime p-3">
+          <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
             Total Valuasi Portofolio (USD)
           </div>
-          <div style={{ fontSize: 26, fontFamily: 'var(--font-display)', fontWeight: 800, letterSpacing: '-0.02em', color: 'var(--accent)', marginTop: 2 }}>
+          <div style={{ fontSize: 22, fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--accent)', marginTop: 2 }}>
             ${totalEquityUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <div className="flex items-center gap-3 mt-2" style={{ fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+          <div className="flex items-center gap-3 mt-1.5 mono" style={{ fontSize: 10 }}>
             <span style={{ color: unrealized >= 0 ? 'var(--bull)' : 'var(--bear)' }}>
               Unrealized: {unrealized >= 0 ? '+' : ''}{fmt(unrealized)}
             </span>
@@ -118,113 +111,98 @@ export default function PortfolioPage() {
               Hari Ini: {realizedToday >= 0 ? '+' : ''}{fmt(realizedToday)}
             </span>
           </div>
-          <div className="mt-2 pt-2 border-t border-border flex justify-between items-center" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+          <div className="mt-2 pt-1.5 border-t border-border flex justify-between items-center mono" style={{ fontSize: 9.5 }}>
             <span style={{ color: 'var(--text-muted)' }}>Kas USDT Bebas:</span>
             <span style={{ fontWeight: 700, color: 'var(--bull)' }}>${freeUSDT.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
 
         {/* BTC Treasury Vault Card */}
-        <div className="card p-3" style={{ borderLeft: '3px solid #00F0FF', background: 'linear-gradient(135deg, rgba(0,240,255,0.05), transparent)' }}>
+        <div className="card p-3" style={{ borderLeft: '3px solid #00F0FF', background: 'linear-gradient(135deg, rgba(0,240,255,0.04), var(--bg-card))' }}>
           <div className="flex items-center justify-between">
-            <div style={{ fontSize: 10, color: '#00F0FF', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
-              <Coins size={12} /> BTC Treasury Vault
+            <div style={{ fontSize: 9.5, color: '#00F0FF', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
+              <Coins size={11} /> BTC Treasury Vault
             </div>
-            <span className="badge" style={{ background: 'rgba(0,240,255,0.15)', color: '#00F0FF', fontSize: 9 }}>70% PROFIT ACCUMULATOR</span>
+            <span className="badge badge-cyan" style={{ fontSize: 7.5 }}>70% PROFIT</span>
           </div>
-          <div style={{ fontSize: 22, fontFamily: 'var(--font-display)', fontWeight: 800, color: '#00F0FF', marginTop: 4 }}>
+          <div style={{ fontSize: 20, fontFamily: 'var(--font-display)', fontWeight: 800, color: '#00F0FF', marginTop: 3 }}>
             {btcStack.toFixed(8)} BTC
           </div>
-          <div style={{ fontSize: 11, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginTop: 1 }}>
+          <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginTop: 1 }}>
             Valuasi: ${btcVaultValUSD.toFixed(2)} USDT (@${btcPrice.toLocaleString()})
           </div>
-          <div className="mt-2 pt-2 border-t border-border flex justify-between items-center" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
-            <span style={{ color: 'var(--text-muted)' }}>Total Modal Profit Diinvestasi:</span>
+          <div className="mt-2 pt-1.5 border-t border-border flex justify-between items-center mono" style={{ fontSize: 9.5 }}>
+            <span style={{ color: 'var(--text-muted)' }}>Profit Diinvestasikan:</span>
             <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>${btcInvestedUSD.toFixed(2)} USDT</span>
           </div>
         </div>
 
         {/* Risk & Safety Card */}
         <div className="card p-3">
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+          <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
             Risk Guard & Failsafe
           </div>
-          <div className="flex items-center justify-between mt-2">
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Drawdown Portofolio:</span>
-            <span className="mono font-bold" style={{ color: drawdown > 8 ? 'var(--bear)' : 'var(--bull)' }}>
-              {drawdown.toFixed(2)}% <span style={{ fontSize: 9, color: 'var(--text-muted)' }}>(Max 15%)</span>
+          <div className="flex items-center justify-between mt-2 mono" style={{ fontSize: 10.5 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Drawdown:</span>
+            <span className="font-bold" style={{ color: drawdown > 8 ? 'var(--bear)' : 'var(--bull)' }}>
+              {drawdown.toFixed(2)}% <span style={{ fontSize: 8.5, color: 'var(--text-muted)' }}>(Max 15%)</span>
             </span>
           </div>
-          <div className="flex items-center justify-between mt-1">
-            <span style={{ fontSize: 11, color: 'var(--text-secondary)' }}>Status Proteksi:</span>
-            <span className={`badge ${risk?.capital_preservation ? 'badge-bear' : risk?.risk_off_active ? 'badge-warn' : 'badge-bull'}`} style={{ fontSize: 9 }}>
-              {risk?.capital_preservation ? 'CAPITAL PRESERVATION' : risk?.risk_off_active ? 'RISK-OFF 50%' : 'NORMAL TRADING'}
+          <div className="flex items-center justify-between mt-1 mono" style={{ fontSize: 10.5 }}>
+            <span style={{ color: 'var(--text-secondary)' }}>Status Risiko:</span>
+            <span className={`badge ${risk?.capital_preservation ? 'badge-bear' : risk?.risk_off ? 'badge-warn' : 'badge-bull'}`} style={{ fontSize: 8 }}>
+              {risk?.capital_preservation ? 'CAPITAL PRESERVATION' : risk?.risk_off ? 'RISK-OFF 50%' : 'NORMAL'}
             </span>
           </div>
-          <div className="mt-2 pt-2 border-t border-border flex justify-between items-center" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+          <div className="mt-2 pt-1.5 border-t border-border flex justify-between items-center mono" style={{ fontSize: 9.5 }}>
             <span style={{ color: 'var(--text-muted)' }}>Mode Aktif:</span>
-            <span className="badge badge-lime" style={{ fontSize: 9 }}>{(system?.mode || 'PAPER').toUpperCase()}</span>
+            <span className="badge badge-lime" style={{ fontSize: 8 }}>{(system?.mode || 'PAPER').toUpperCase()}</span>
           </div>
         </div>
       </div>
 
       {/* Navigation Sub-Tabs */}
-      <div className="flex items-center gap-1.5 mb-3 border-b border-border pb-2 overflow-x-auto">
-        <button
-          className={`btn btn-sm ${activeTab === 'balances' ? 'btn-lime' : 'btn-ghost'}`}
-          onClick={() => setActiveTab('balances')}
-          style={{ padding: '4px 10px', fontSize: 10 }}
-        >
-          <Wallet size={11} /> Saldo Aset ({assets.length})
-        </button>
-        <button
-          className={`btn btn-sm ${activeTab === 'deposits' ? 'btn-lime' : 'btn-ghost'}`}
-          onClick={() => setActiveTab('deposits')}
-          style={{ padding: '4px 10px', fontSize: 10 }}
-        >
-          <ArrowDownLeft size={11} /> Riwayat Deposit ({deposits.length})
-        </button>
-        <button
-          className={`btn btn-sm ${activeTab === 'withdrawals' ? 'btn-lime' : 'btn-ghost'}`}
-          onClick={() => setActiveTab('withdrawals')}
-          style={{ padding: '4px 10px', fontSize: 10 }}
-        >
-          <ArrowUpRight size={11} /> Riwayat Penarikan ({withdrawals.length})
-        </button>
-        <button
-          className={`btn btn-sm ${activeTab === 'transfers' ? 'btn-lime' : 'btn-ghost'}`}
-          onClick={() => setActiveTab('transfers')}
-          style={{ padding: '4px 10px', fontSize: 10 }}
-        >
-          <ArrowRightLeft size={11} /> Transfer Spot/Futures ({transfers.length})
-        </button>
-        <button
-          className={`btn btn-sm ${activeTab === 'allocations' ? 'btn-lime' : 'btn-ghost'}`}
-          onClick={() => setActiveTab('allocations')}
-          style={{ padding: '4px 10px', fontSize: 10 }}
-        >
-          <PieChart size={11} /> Alokasi & Drift Rebalancing
-        </button>
+      <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border">
+        {[
+          { id: 'balances', label: `Saldo Aset (${assets.length})`, icon: Wallet },
+          { id: 'deposits', label: `Deposit SAPI (${deposits.length})`, icon: ArrowDownLeft },
+          { id: 'withdrawals', label: `Penarikan SAPI (${withdrawals.length})`, icon: ArrowUpRight },
+          { id: 'transfers', label: `Transfer Internal (${transfers.length})`, icon: ArrowRightLeft },
+          { id: 'allocations', label: `Alokasi & Drift`, icon: PieChart },
+        ].map(t => {
+          const Icon = t.icon
+          const active = activeTab === t.id
+          return (
+            <button
+              key={t.id}
+              className={`btn btn-xs ${active ? 'btn-lime' : 'btn-ghost'}`}
+              onClick={() => setActiveTab(t.id as any)}
+              style={{ padding: '3px 8px', fontSize: 9.5, whiteSpace: 'nowrap' }}
+            >
+              <Icon size={10} /> {t.label}
+            </button>
+          )
+        })}
       </div>
 
       {/* TAB 1: Live Binance Balances */}
       {activeTab === 'balances' && (
-        <div className="card p-3 mb-3">
+        <div className="card p-3">
           <SectionHeader
             title="Daftar Saldo Aset Binance"
             subtitle="Kuantitas saldo bebas, saldo terkunci, dan estimasi nilai USD yang tersinkronisasi dari Binance API"
           />
-          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 8 }}>
+          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--bg-border)', color: 'var(--text-muted)', textAlign: 'left' }}>
                   <th style={{ padding: '6px 4px' }}>Aset</th>
                   <th style={{ padding: '6px 4px' }}>Saldo Bebas</th>
-                  <th style={{ padding: '6px 4px' }}>Terkunci (Order)</th>
-                  <th style={{ padding: '6px 4px' }}>Total Kuantitas</th>
+                  <th style={{ padding: '6px 4px' }}>Terkunci</th>
+                  <th style={{ padding: '6px 4px' }}>Total</th>
                   <th style={{ padding: '6px 4px' }}>Harga Pasar</th>
                   <th style={{ padding: '6px 4px' }}>Nilai Estimasi (USD)</th>
-                  <th style={{ padding: '6px 4px' }}>Porsi (%)</th>
+                  <th style={{ padding: '6px 4px' }}>Bobot (%)</th>
                 </tr>
               </thead>
               <tbody>
@@ -238,7 +216,7 @@ export default function PortfolioPage() {
                   assets.map((a, i) => {
                     const weightPct = totalEquityUSD > 0 ? ((a.usd_value / totalEquityUSD) * 100).toFixed(1) : '0.0'
                     return (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 36 }}>
+                      <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 34 }}>
                         <td style={{ padding: '6px 4px', fontWeight: 700 }}>
                           <span style={{ color: a.asset === 'BTC' ? '#00F0FF' : a.asset === 'USDT' ? 'var(--accent)' : 'var(--text-primary)' }}>
                             {a.asset}
@@ -252,7 +230,7 @@ export default function PortfolioPage() {
                           ${a.usd_value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </td>
                         <td style={{ padding: '6px 4px' }}>
-                          <span className="badge badge-muted" style={{ fontSize: 9 }}>{weightPct}%</span>
+                          <span className="badge badge-muted" style={{ fontSize: 8 }}>{weightPct}%</span>
                         </td>
                       </tr>
                     )
@@ -266,16 +244,16 @@ export default function PortfolioPage() {
 
       {/* TAB 2: Deposit History */}
       {activeTab === 'deposits' && (
-        <div className="card p-3 mb-3">
+        <div className="card p-3">
           <SectionHeader
             title="Riwayat Deposit Dana (SAPI)"
-            subtitle="Catatan transaksi setoran dana masuk dari jaringan blockchain atau internal Binance"
+            subtitle="Catatan transaksi setoran dana masuk langsung dari Binance SAPI"
           />
-          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 8 }}>
+          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--bg-border)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                  <th style={{ padding: '6px 4px' }}>Waktu Masuk</th>
+                  <th style={{ padding: '6px 4px' }}>Waktu</th>
                   <th style={{ padding: '6px 4px' }}>Koin</th>
                   <th style={{ padding: '6px 4px' }}>Jumlah</th>
                   <th style={{ padding: '6px 4px' }}>Jaringan</th>
@@ -295,16 +273,16 @@ export default function PortfolioPage() {
                     const timeStr = d.insertTime ? new Date(d.insertTime).toLocaleString() : '—'
                     const statusLabel = d.status === 1 ? 'SUKSES' : d.status === 0 ? 'PENDING' : 'DIBATALKAN'
                     return (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 36 }}>
+                      <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 34 }}>
                         <td style={{ padding: '6px 4px', color: 'var(--text-muted)' }}>{timeStr}</td>
                         <td style={{ padding: '6px 4px', fontWeight: 700, color: 'var(--accent)' }}>{d.coin}</td>
                         <td style={{ padding: '6px 4px', fontWeight: 600, color: 'var(--bull)' }}>+{d.amount}</td>
                         <td style={{ padding: '6px 4px' }}>{d.network || '—'}</td>
                         <td style={{ padding: '6px 4px', color: 'var(--text-muted)' }}>
-                          {d.txId ? `${d.txId.substring(0, 10)}...${d.txId.substring(d.txId.length - 6)}` : 'Internal'}
+                          {d.txId ? `${d.txId.substring(0, 8)}...${d.txId.substring(d.txId.length - 6)}` : 'Internal'}
                         </td>
                         <td style={{ padding: '6px 4px' }}>
-                          <span className={`badge ${d.status === 1 ? 'badge-bull' : 'badge-warn'}`} style={{ fontSize: 9 }}>
+                          <span className={`badge ${d.status === 1 ? 'badge-bull' : 'badge-warn'}`} style={{ fontSize: 8 }}>
                             {statusLabel}
                           </span>
                         </td>
@@ -320,19 +298,19 @@ export default function PortfolioPage() {
 
       {/* TAB 3: Withdrawal History */}
       {activeTab === 'withdrawals' && (
-        <div className="card p-3 mb-3">
+        <div className="card p-3">
           <SectionHeader
             title="Riwayat Penarikan Dana (SAPI)"
             subtitle="Catatan transaksi penarikan dana keluar dari akun Binance"
           />
-          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 8 }}>
+          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--bg-border)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                  <th style={{ padding: '6px 4px' }}>Waktu Penarikan</th>
+                  <th style={{ padding: '6px 4px' }}>Waktu</th>
                   <th style={{ padding: '6px 4px' }}>Koin</th>
                   <th style={{ padding: '6px 4px' }}>Jumlah</th>
-                  <th style={{ padding: '6px 4px' }}>Biaya (Fee)</th>
+                  <th style={{ padding: '6px 4px' }}>Fee</th>
                   <th style={{ padding: '6px 4px' }}>Alamat Tujuan</th>
                   <th style={{ padding: '6px 4px' }}>Status</th>
                 </tr>
@@ -349,16 +327,16 @@ export default function PortfolioPage() {
                     const timeStr = w.applyTime || '—'
                     const statusLabel = w.status === 6 ? 'SELESAI' : w.status === 4 ? 'DIPROSES' : 'GAGAL'
                     return (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 36 }}>
+                      <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 34 }}>
                         <td style={{ padding: '6px 4px', color: 'var(--text-muted)' }}>{timeStr}</td>
                         <td style={{ padding: '6px 4px', fontWeight: 700, color: 'var(--accent)' }}>{w.coin}</td>
                         <td style={{ padding: '6px 4px', fontWeight: 600, color: 'var(--bear)' }}>-{w.amount}</td>
                         <td style={{ padding: '6px 4px', color: 'var(--text-muted)' }}>{w.transactionFee} {w.coin}</td>
                         <td style={{ padding: '6px 4px', color: 'var(--text-muted)' }}>
-                          {w.address ? `${w.address.substring(0, 8)}...${w.address.substring(w.address.length - 6)}` : '—'}
+                          {w.address ? `${w.address.substring(0, 6)}...${w.address.substring(w.address.length - 6)}` : '—'}
                         </td>
                         <td style={{ padding: '6px 4px' }}>
-                          <span className={`badge ${w.status === 6 ? 'badge-bull' : 'badge-warn'}`} style={{ fontSize: 9 }}>
+                          <span className={`badge ${w.status === 6 ? 'badge-bull' : 'badge-warn'}`} style={{ fontSize: 8 }}>
                             {statusLabel}
                           </span>
                         </td>
@@ -372,21 +350,21 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* TAB 4: Internal Transfers History */}
+      {/* TAB 4: Internal Transfers */}
       {activeTab === 'transfers' && (
-        <div className="card p-3 mb-3">
+        <div className="card p-3">
           <SectionHeader
             title="Riwayat Transfer Internal Spot <-> Futures (SAPI)"
             subtitle="Mutasi perpindahan dana saldo margin antara dompet Spot dan USD(M) Futures"
           />
-          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 8 }}>
+          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--bg-border)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                  <th style={{ padding: '6px 4px' }}>Waktu Transfer</th>
+                  <th style={{ padding: '6px 4px' }}>Waktu</th>
                   <th style={{ padding: '6px 4px' }}>Aset</th>
                   <th style={{ padding: '6px 4px' }}>Jumlah</th>
-                  <th style={{ padding: '6px 4px' }}>Arah Perpindahan</th>
+                  <th style={{ padding: '6px 4px' }}>Arah</th>
                   <th style={{ padding: '6px 4px' }}>Status</th>
                 </tr>
               </thead>
@@ -402,17 +380,17 @@ export default function PortfolioPage() {
                     const timeStr = t.timestamp ? new Date(t.timestamp).toLocaleString() : '—'
                     const direction = t.type === '1' ? 'SPOT ➔ FUTURES' : 'FUTURES ➔ SPOT'
                     return (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 36 }}>
+                      <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 34 }}>
                         <td style={{ padding: '6px 4px', color: 'var(--text-muted)' }}>{timeStr}</td>
                         <td style={{ padding: '6px 4px', fontWeight: 700, color: 'var(--accent)' }}>{t.asset}</td>
                         <td style={{ padding: '6px 4px', fontWeight: 600 }}>${Number(t.amount || 0).toFixed(2)}</td>
                         <td style={{ padding: '6px 4px' }}>
-                          <span className={`badge ${t.type === '1' ? 'badge-warn' : 'badge-bull'}`} style={{ fontSize: 9 }}>
+                          <span className={`badge ${t.type === '1' ? 'badge-warn' : 'badge-bull'}`} style={{ fontSize: 8 }}>
                             {direction}
                           </span>
                         </td>
                         <td style={{ padding: '6px 4px' }}>
-                          <span className="badge badge-bull" style={{ fontSize: 9 }}>{t.status || 'CONFIRMED'}</span>
+                          <span className="badge badge-bull" style={{ fontSize: 8 }}>{t.status || 'CONFIRMED'}</span>
                         </td>
                       </tr>
                     )
@@ -424,22 +402,22 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* TAB 5: Allocations & Drift Monitor */}
+      {/* TAB 5: Allocations & Drift */}
       {activeTab === 'allocations' && (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Donut Chart Card */}
           <div className="card p-3">
             <SectionHeader title="Distribusi Aset Portofolio" subtitle="Bobot setiap koin terhadap total modal" />
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginTop: 8 }}>
-              <div style={{ width: 140, height: 140, position: 'relative', margin: '0 auto' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
+              <div style={{ width: 125, height: 125, position: 'relative', margin: '0 auto' }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <RPieChart>
                     <Pie
                       data={pieData}
                       cx="50%"
                       cy="50%"
-                      innerRadius={40}
-                      outerRadius={65}
+                      innerRadius={36}
+                      outerRadius={58}
                       paddingAngle={2}
                       dataKey="value"
                       stroke="none"
@@ -449,21 +427,21 @@ export default function PortfolioPage() {
                       ))}
                     </Pie>
                     <Tooltip
-                      contentStyle={{ background: 'var(--bg-card2)', border: '1px solid var(--bg-border)', borderRadius: 6, fontSize: 10, fontFamily: 'var(--font-mono)' }}
+                      contentStyle={{ background: 'var(--bg-card2)', border: '1px solid var(--bg-border)', borderRadius: 6, fontSize: 9.5, fontFamily: 'var(--font-mono)' }}
                       formatter={(v: any) => [`$${Number(v).toFixed(2)}`]}
                     />
                   </RPieChart>
                 </ResponsiveContainer>
               </div>
 
-              <div style={{ flex: 1, minWidth: 140 }}>
+              <div style={{ flex: 1, minWidth: 120 }}>
                 {pieData.map((d, i) => (
-                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6, marginBottom: 4 }}>
+                  <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginBottom: 3 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <div style={{ width: 6, height: 6, borderRadius: 2, background: d.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{d.name}</span>
+                      <div style={{ width: 5, height: 5, borderRadius: 2, background: d.color, flexShrink: 0 }} />
+                      <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{d.name}</span>
                     </div>
-                    <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
+                    <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
                       ${d.value.toLocaleString('en-US', { maximumFractionDigits: 0 })} ({((d.value / Math.max(totalEquityUSD, 1)) * 100).toFixed(1)}%)
                     </span>
                   </div>
@@ -475,10 +453,10 @@ export default function PortfolioPage() {
           {/* Target Rules & Rebalance Drift */}
           <div className="card p-3">
             <SectionHeader title="Target Alokasi & Drift Monitor" subtitle="Plafon modal 3-Bucket Hedge Fund" />
-            <div className="flex flex-col gap-3 mt-2">
+            <div className="flex flex-col gap-2.5 mt-2">
               <div>
-                <div className="flex justify-between items-center mb-1" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
-                  <span style={{ color: '#00F0FF', fontWeight: 700 }}>BTC Treasury Vault (Target 70% Spot)</span>
+                <div className="flex justify-between items-center mb-1 mono" style={{ fontSize: 9.5 }}>
+                  <span style={{ color: '#00F0FF', fontWeight: 700 }}>BTC Vault (Target 70% Spot)</span>
                   <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.9 * 0.7).toFixed(2)}</span>
                 </div>
                 <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
@@ -487,7 +465,7 @@ export default function PortfolioPage() {
               </div>
 
               <div>
-                <div className="flex justify-between items-center mb-1" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+                <div className="flex justify-between items-center mb-1 mono" style={{ fontSize: 9.5 }}>
                   <span style={{ color: 'var(--bull)' }}>Spot Altcoins (Target 30% Spot)</span>
                   <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.9 * 0.3).toFixed(2)}</span>
                 </div>
@@ -497,8 +475,8 @@ export default function PortfolioPage() {
               </div>
 
               <div>
-                <div className="flex justify-between items-center mb-1" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
-                  <span style={{ color: 'var(--warn)' }}>UM Futures Tactical Hedge (Target 10% Total)</span>
+                <div className="flex justify-between items-center mb-1 mono" style={{ fontSize: 9.5 }}>
+                  <span style={{ color: 'var(--warn)' }}>Futures Hedge (Target 10% Total)</span>
                   <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.1).toFixed(2)}</span>
                 </div>
                 <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
@@ -506,10 +484,10 @@ export default function PortfolioPage() {
                 </div>
               </div>
 
-              <div style={{ background: 'var(--bg-deep)', padding: '8px 10px', borderRadius: 6, border: '1px solid var(--bg-border)', display: 'flex', gap: 6, alignItems: 'center', marginTop: 4 }}>
-                <CheckCircle2 size={13} style={{ color: 'var(--accent)' }} />
-                <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
-                  Rebalancing otomatis aktif saat deviasi alokasi &gt; 5.0%.
+              <div style={{ background: 'var(--bg-deep)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--bg-border)', display: 'flex', gap: 6, alignItems: 'center', marginTop: 3 }}>
+                <CheckCircle2 size={12} style={{ color: 'var(--accent)' }} />
+                <div style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
+                  Rebalance otomatis aktif saat deviasi alokasi &gt; 5.0%.
                 </div>
               </div>
             </div>

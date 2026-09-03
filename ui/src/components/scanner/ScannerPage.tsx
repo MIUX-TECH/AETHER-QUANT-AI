@@ -33,7 +33,6 @@ export default function ScannerPage() {
     reasoning: r?.score?.reasoning || '',
     indicators: r?.indicators || {},
     ai_verdict: r?.score?.ai_verdict || 'APPROVE',
-    ai_reasoning: r?.score?.ai_reasoning || '',
   })).filter(i => i.price > 0)
 
   // Filter and search
@@ -55,35 +54,13 @@ export default function ScannerPage() {
   })
 
   return (
-    <div className="page pb-12">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-        <div>
-          <h1 style={{ fontSize: 18, fontWeight: 800, letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <Radar size={18} style={{ color: 'var(--accent)' }} /> Radar Kuantitatif Multi-Pilar
-          </h1>
-          <p style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
-            Evaluasi 8 Komponen Berbobot · Deteksi 7 Rezim Pasar · Validasi Hakim AI Qwen 27B
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button className="btn btn-ghost btn-sm" onClick={refresh} disabled={loading} style={{ padding: '4px 10px' }}>
-            <RefreshCw size={12} className={loading ? 'animate-spin' : ''} />
-          </button>
-          <button className="btn btn-lime btn-sm" onClick={triggerScan} disabled={loading} style={{ padding: '4px 12px', fontSize: 11 }}>
-            <Zap size={12} />
-            <span>Pindai Pasar Sekarang</span>
-          </button>
-        </div>
-      </div>
-
+    <div className="flex flex-col gap-3">
       {/* Search & Category Filter Bar */}
-      <div className="card p-3 mb-3 flex flex-col gap-2.5">
-        <div className="flex items-center justify-between gap-3 flex-wrap">
+      <div className="card p-2.5 flex flex-col gap-2">
+        <div className="flex items-center justify-between gap-2 flex-wrap">
           {/* Search Box */}
-          <div className="flex items-center gap-2 flex-1 min-w-[200px]" style={{ background: 'var(--bg-deep)', padding: '5px 10px', borderRadius: 6, border: '1px solid var(--bg-border)' }}>
-            <Search size={13} style={{ color: 'var(--text-muted)' }} />
+          <div className="flex items-center gap-2 flex-1 min-w-[180px]" style={{ background: 'var(--bg-deep)', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--bg-border)' }}>
+            <Search size={12} style={{ color: 'var(--text-muted)' }} />
             <input
               type="text"
               placeholder="Cari simbol pair (misal: BTC, SOL, PEPE)..."
@@ -93,40 +70,45 @@ export default function ScannerPage() {
             />
           </div>
 
-          {/* Category Tabs */}
-          <div className="flex items-center gap-1 bg-deep p-0.5 rounded border border-border">
+          {/* Category Chips */}
+          <div className="flex items-center gap-1 bg-deep p-0.5 rounded border border-border overflow-x-auto">
             {[
               { id: 'all', label: 'Semua Koin' },
-              { id: 'majors', label: 'Layer-1 Majors' },
-              { id: 'memes', label: 'Meme Tokens' },
-              { id: 'altcoins', label: 'Altcoins Lain' },
+              { id: 'majors', label: 'Majors' },
+              { id: 'memes', label: 'Memes' },
+              { id: 'altcoins', label: 'Altcoins' },
             ].map(c => (
               <button
                 key={c.id}
                 className={`btn btn-xs ${category === c.id ? 'btn-lime' : 'btn-ghost'}`}
                 onClick={() => setCategory(c.id as any)}
-                style={{ padding: '3px 8px', fontSize: 9 }}
+                style={{ padding: '2px 7px', fontSize: 9 }}
               >
                 {c.label}
               </button>
             ))}
           </div>
+
+          {/* Trigger Scan Button */}
+          <button className="btn btn-lime btn-xs" onClick={triggerScan} disabled={loading} style={{ padding: '4px 10px', fontSize: 10 }}>
+            <Zap size={10} /> Scan
+          </button>
         </div>
 
         {/* Quick Signal Filters */}
-        <div className="flex items-center gap-1.5 flex-wrap pt-2 border-t border-border">
+        <div className="flex items-center gap-1 flex-wrap pt-1.5 border-t border-border overflow-x-auto">
           {[
-            { id: 'all', label: `Semua Sinyal (${items.length})` },
+            { id: 'all', label: `Semua (${items.length})` },
             { id: 'buy', label: 'Sinyal BUY' },
             { id: 'short', label: 'Sinyal SHORT' },
-            { id: 'bullish', label: 'Rezim Bullish / Expansion' },
-            { id: 'high_conf', label: 'Skor Lolos Threshold (≥68%)' },
+            { id: 'bullish', label: 'Rezim Bullish' },
+            { id: 'high_conf', label: 'Lolos AI (≥68%)' },
           ].map(f => (
             <button
               key={f.id}
-              className={`btn btn-sm ${filterType === f.id ? 'btn-lime' : 'btn-ghost'}`}
+              className={`btn btn-xs ${filterType === f.id ? 'btn-lime' : 'btn-ghost'}`}
               onClick={() => setFilterType(f.id as any)}
-              style={{ padding: '3px 8px', fontSize: 10 }}
+              style={{ padding: '2px 7px', fontSize: 9.5 }}
             >
               {f.label}
             </button>
@@ -135,56 +117,56 @@ export default function ScannerPage() {
       </div>
 
       {/* Radar Matrix Table */}
-      <div className="card p-3 mb-3">
-        <div className="table-wrapper" style={{ overflowX: 'auto' }}>
+      <div className="card p-3">
+        <SectionHeader title={`Radar Kuantitatif 8 Pilar (${filtered.length})`} subtitle="Evaluasi indikator teknikal & validasi model AI Qwen 27B" />
+
+        <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid var(--bg-border)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                <th style={{ padding: '8px 6px' }}>Pair Koin</th>
-                <th style={{ padding: '8px 6px' }}>Harga Terkini</th>
-                <th style={{ padding: '8px 6px' }}>24h Chg</th>
-                <th style={{ padding: '8px 6px' }}>Rezim Pasar</th>
-                <th style={{ padding: '8px 6px' }}>Skor 8 Pilar</th>
-                <th style={{ padding: '8px 6px' }}>Sinyal Aksi</th>
-                <th style={{ padding: '8px 6px' }}>Status Hakim AI</th>
-                <th style={{ padding: '8px 6px' }}>Aksi</th>
+                <th style={{ padding: '6px 4px' }}>Pair</th>
+                <th style={{ padding: '6px 4px' }}>Harga</th>
+                <th style={{ padding: '6px 4px' }}>24h %</th>
+                <th style={{ padding: '6px 4px' }}>Rezim</th>
+                <th style={{ padding: '6px 4px' }}>Skor 8 Pilar</th>
+                <th style={{ padding: '6px 4px' }}>Sinyal</th>
+                <th style={{ padding: '6px 4px' }}>Status AI</th>
+                <th style={{ padding: '6px 4px' }}>Aksi</th>
               </tr>
             </thead>
             <tbody>
               {filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={8} style={{ textAlign: 'center', padding: '24px', color: 'var(--text-muted)' }}>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)' }}>
                     Tidak ada koin yang sesuai dengan filter pencarian.
                   </td>
                 </tr>
               ) : (
                 filtered.map((item, i) => {
-                  const comp = item.components || {}
-                  const isBuy = item.signal.includes('BUY')
                   return (
                     <tr
                       key={i}
                       style={{
                         borderBottom: '1px solid var(--bg-border)',
-                        height: 42,
+                        height: 38,
                         background: item.confidence >= 0.68 ? 'rgba(163,230,53,0.02)' : 'transparent'
                       }}
                     >
-                      <td style={{ padding: '8px 6px', fontWeight: 800 }}>
+                      <td style={{ padding: '6px 4px', fontWeight: 800 }}>
                         <span style={{ color: item.symbol.includes('BTC') ? '#00F0FF' : 'var(--text-primary)' }}>
                           {item.symbol}
                         </span>
                       </td>
-                      <td style={{ padding: '8px 6px', fontWeight: 600 }}>${fmtPrice(item.price)}</td>
-                      <td style={{ padding: '8px 6px', color: item.change >= 0 ? 'var(--bull)' : 'var(--bear)' }}>
+                      <td style={{ padding: '6px 4px', fontWeight: 600 }}>${fmtPrice(item.price)}</td>
+                      <td style={{ padding: '6px 4px', color: item.change >= 0 ? 'var(--bull)' : 'var(--bear)' }}>
                         {item.change >= 0 ? '+' : ''}{item.change.toFixed(2)}%
                       </td>
-                      <td style={{ padding: '8px 6px' }}>
+                      <td style={{ padding: '6px 4px' }}>
                         <RegimePill regime={item.regime} />
                       </td>
-                      <td style={{ padding: '8px 6px' }}>
-                        <div className="flex items-center gap-2">
-                          <div style={{ width: 45, height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
+                      <td style={{ padding: '6px 4px' }}>
+                        <div className="flex items-center gap-1.5">
+                          <div style={{ width: 40, height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
                             <div
                               style={{
                                 width: `${Math.min(item.confidence * 100, 100)}%`,
@@ -198,27 +180,27 @@ export default function ScannerPage() {
                           </span>
                         </div>
                       </td>
-                      <td style={{ padding: '8px 6px' }}>
+                      <td style={{ padding: '6px 4px' }}>
                         <SignalBadge signal={item.signal} />
                       </td>
-                      <td style={{ padding: '8px 6px' }}>
+                      <td style={{ padding: '6px 4px' }}>
                         {item.confidence >= 0.68 ? (
-                          <span className="badge badge-lime" style={{ fontSize: 8 }}>
+                          <span className="badge badge-lime" style={{ fontSize: 7.5 }}>
                             ✓ AI APPROVED
                           </span>
                         ) : (
-                          <span className="badge badge-muted" style={{ fontSize: 8 }}>
+                          <span className="badge badge-muted" style={{ fontSize: 7.5 }}>
                             WAIT / HOLD
                           </span>
                         )}
                       </td>
-                      <td style={{ padding: '8px 6px' }}>
+                      <td style={{ padding: '6px 4px' }}>
                         <button
                           className="btn btn-ghost btn-xs"
                           onClick={() => setSelectedSymbol(item)}
-                          style={{ padding: '2px 6px', fontSize: 9, display: 'flex', alignItems: 'center', gap: 2 }}
+                          style={{ padding: '2px 5px', fontSize: 8.5, display: 'flex', alignItems: 'center', gap: 2 }}
                         >
-                          <Eye size={10} /> Rincian
+                          <Eye size={9} /> Rincian
                         </button>
                       </td>
                     </tr>
@@ -230,14 +212,14 @@ export default function ScannerPage() {
         </div>
       </div>
 
-      {/* Deep Pillar Breakdown Modal / Drawer */}
+      {/* Deep-Dive Pillar Modal Drawer */}
       {selectedSymbol && (
         <div
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.7)',
-            backdropFilter: 'blur(4px)',
+            background: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(5px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -247,14 +229,14 @@ export default function ScannerPage() {
           onClick={() => setSelectedSymbol(null)}
         >
           <div
-            className="card p-4"
-            style={{ maxWidth: 540, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
+            className="card p-3.5"
+            style={{ maxWidth: 480, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
             onClick={e => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between mb-3 border-b border-border pb-2">
+            <div className="flex items-center justify-between mb-2.5 border-b border-border pb-2">
               <div>
-                <h3 style={{ fontSize: 16, fontWeight: 800 }}>Rincian 8 Pilar: {selectedSymbol.symbol}</h3>
-                <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                <h3 style={{ fontSize: 14, fontWeight: 800 }}>Rincian 8 Pilar: {selectedSymbol.symbol}</h3>
+                <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
                   Harga: ${fmtPrice(selectedSymbol.price)} · Rezim: {selectedSymbol.regime.toUpperCase()}
                 </div>
               </div>
@@ -262,10 +244,10 @@ export default function ScannerPage() {
             </div>
 
             {/* 8 Pillars Breakdown */}
-            <div className="flex flex-col gap-2 mb-3">
+            <div className="flex flex-col gap-1.5 mb-2.5">
               <SectionHeader title="Matriks Bobot 8 Komponen" subtitle="Kontribusi masing-masing pilar terhadap skor akhir" />
               {Object.entries(selectedSymbol.components || {}).map(([k, v]: [string, any], idx) => (
-                <div key={idx} className="flex justify-between items-center p-2 rounded bg-deep border border-border" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+                <div key={idx} className="flex justify-between items-center p-1.5 rounded bg-deep border border-border" style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)' }}>
                   <span style={{ textTransform: 'capitalize', color: 'var(--text-secondary)' }}>{k.replace('_', ' ')}</span>
                   <span className="font-bold" style={{ color: Number(v) >= 0.68 ? 'var(--bull)' : 'var(--text-primary)' }}>
                     {(Number(v) * 100).toFixed(0)}%
@@ -277,8 +259,8 @@ export default function ScannerPage() {
             {/* Factors */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
               <div className="p-2 rounded bg-deep border border-border">
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--bull)', marginBottom: 4 }}>Faktor Bullish:</div>
-                <ul style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', paddingLeft: 12 }}>
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--bull)', marginBottom: 3 }}>Faktor Bullish:</div>
+                <ul style={{ fontSize: 8.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', paddingLeft: 10 }}>
                   {selectedSymbol.bullish_factors.length > 0
                     ? selectedSymbol.bullish_factors.map((f: string, i: number) => <li key={i}>{f}</li>)
                     : <li>Tidak ada faktor signifikan</li>
@@ -287,8 +269,8 @@ export default function ScannerPage() {
               </div>
 
               <div className="p-2 rounded bg-deep border border-border">
-                <div style={{ fontSize: 10, fontWeight: 700, color: 'var(--bear)', marginBottom: 4 }}>Faktor Bearish:</div>
-                <ul style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', paddingLeft: 12 }}>
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--bear)', marginBottom: 3 }}>Faktor Bearish:</div>
+                <ul style={{ fontSize: 8.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', paddingLeft: 10 }}>
                   {selectedSymbol.bearish_factors.length > 0
                     ? selectedSymbol.bearish_factors.map((f: string, i: number) => <li key={i}>{f}</li>)
                     : <li>Tidak ada faktor signifikan</li>
@@ -298,8 +280,8 @@ export default function ScannerPage() {
             </div>
 
             <div className="flex justify-end">
-              <button className="btn btn-lime btn-sm" onClick={() => setSelectedSymbol(null)}>
-                Tutup Rincian
+              <button className="btn btn-lime btn-xs" onClick={() => setSelectedSymbol(null)}>
+                Tutup
               </button>
             </div>
           </div>
