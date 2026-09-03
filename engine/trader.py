@@ -156,10 +156,10 @@ class TradingOrchestrator:
         if existing and existing.get("status") == "active":
             return {"executed": False, "reason": "Position already open"}
 
-        # Available capital
+        # Available capital (Min Binance Spot Notional is $5.00)
         available = self.portfolio_manager.get_available_for_trade("spot", symbol)
-        if available < 10:
-            return {"executed": False, "reason": f"Insufficient capital: ${available:.2f}"}
+        if available < 5.0:
+            return {"executed": False, "reason": f"Insufficient capital: ${available:.2f} (min $5.00)"}
 
         # Position sizing
         current_price = scan.get("price", 0)
@@ -175,8 +175,8 @@ class TradingOrchestrator:
         sizing["position_usdt"] = min(sizing["position_usdt"], available)
         sizing["position_qty"] = sizing["position_usdt"] / current_price if current_price > 0 else 0
 
-        if sizing["position_usdt"] < 10:
-            return {"executed": False, "reason": "Position too small"}
+        if sizing["position_usdt"] < 5.0:
+            return {"executed": False, "reason": "Position too small (< $5.00 Binance min)"}
 
         # AI Decision Layer Validation (Qwen / Groq Gatekeeper)
         if self.ai_client and self.ai_client.is_available:
@@ -248,8 +248,8 @@ class TradingOrchestrator:
             return {"executed": False, "reason": reason}
 
         available = self.portfolio_manager.get_available_for_trade("futures", symbol)
-        if available < 10:
-            return {"executed": False, "reason": "Insufficient futures capital"}
+        if available < 1.67:
+            return {"executed": False, "reason": f"Insufficient futures margin: ${available:.2f} (min $1.67)"}
 
         current_price = scan.get("price", 0)
         atr = scan.get("indicators", {}).get("1h", {}).get("atr_pct", 0.02) * current_price
@@ -459,14 +459,78 @@ class TradingOrchestrator:
         return closed
 
     def run_rebalance(self) -> Dict:
-        """Check and execute portfolio rebalancing."""
-        should, reason = self.portfolio_manager.should_rebalance()
-        if not should:
-            return {"status": "no_rebalance_needed", "reason": reason}
+        """
+        Check and execute automatic portfolio rebalancing between Spot and Futures via Binance SAPI.
+        If Spot free USDT is insufficient, pends the transfer until funds are available.
+        """
+        allocations = self.portfolio_manager.get_allocations()
+        total_equity = float(allocations.get("total", 0.0) or self.state.get("portfolio", {}).get("total_equity", 0.0))
+        
+        if total_equity <= 0:
+            return {"status": "skipped", "reason": "No equity detected"}
 
-        logger.info(f"Rebalancing triggered: {reason}")
+        futures_target = float(allocations.get("futures_budget", total_equity * 0.10))
+        
+        # Get live futures margin balance
+        futures_current = 0.0
+        try:
+            if hasattr(self.executor, "get_futures_account"):
+                fut_acc = self.executor.get_futures_account()
+                futures_current = float(fut_acc.get("totalMarginBalance", 0.0))
+        except Exception:
+            futures_current = float(self.state.get("portfolio", {}).get("futures_equity", 0.0))
+
+        # Get live Spot Free USDT
+        spot_free_usdt = 0.0
+        try:
+            if hasattr(self.executor, "get_account_balances"):
+                balances = self.executor.get_account_balances()
+                spot_free_usdt = float(balances.get("USDT", {}).get("free", 0.0))
+        except Exception:
+            pass
+
+        deficit = round(futures_target - futures_current, 2)
+        surplus = round(futures_current - (futures_target * 1.5), 2)
+
+        # CASE 1: Futures Deficit (Transfer from Spot -> Futures)
+        if deficit >= 1.0:
+            # Check if Spot free USDT is available and leaves at least $5.00 for spot trading
+            if spot_free_usdt >= deficit and (spot_free_usdt - deficit) >= 5.0:
+                logger.info(f"⚖️ EXECUTING AUTO-REBALANCE: Transferring ${deficit} USDT from Spot -> Futures")
+                transfer_res = self.executor.execute_futures_transfer(deficit, "spot_to_futures")
+                self.state["system"]["last_rebalance"] = datetime.utcnow().isoformat()
+                return {
+                    "status": "rebalanced_transferred",
+                    "direction": "spot_to_futures",
+                    "amount": deficit,
+                    "transfer_result": transfer_res
+                }
+            else:
+                reason = f"Pending transfer: Spot Free USDT (${spot_free_usdt:.2f}) insufficient for ${deficit:.2f} transfer (needs $5.00 min spot reserve). Waiting for closed trades/deposits."
+                logger.info(f"⏳ REBALANCE PENDING: {reason}")
+                return {"status": "pending_insufficient_spot_usdt", "reason": reason, "spot_free": spot_free_usdt, "needed": deficit}
+
+        # CASE 2: Futures Surplus (Sweep back from Futures -> Spot & 70% BTC Vault convert)
+        elif surplus >= 1.0:
+            logger.info(f"⚖️ EXECUTING AUTO-SWEEP: Transferring ${surplus} USDT surplus from Futures -> Spot")
+            transfer_res = self.executor.execute_futures_transfer(surplus, "futures_to_spot")
+            
+            # Convert 70% of swept surplus to BTC Vault
+            btc_alloc_usdt = surplus * 0.70
+            if btc_alloc_usdt >= 5.0 and hasattr(self.executor, "place_spot_market_buy"):
+                btc_order = self.executor.place_spot_market_buy("BTCUSDT", btc_alloc_usdt)
+                logger.info(f"🪙 AUTO-SWEEP BTC VAULT CONVERT: {btc_order}")
+
+            self.state["system"]["last_rebalance"] = datetime.utcnow().isoformat()
+            return {
+                "status": "rebalanced_swept",
+                "direction": "futures_to_spot",
+                "amount": surplus,
+                "transfer_result": transfer_res
+            }
+
         self.state["system"]["last_rebalance"] = datetime.utcnow().isoformat()
-        return {"status": "rebalanced", "reason": reason}
+        return {"status": "balanced", "reason": f"Futures equity (${futures_current:.2f}) aligned with target (${futures_target:.2f})"}
 
     def run_learning_update(self) -> Dict:
         """Trigger learning update from recent trade history."""

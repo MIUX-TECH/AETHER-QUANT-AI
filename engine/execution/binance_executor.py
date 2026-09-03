@@ -430,4 +430,26 @@ class BinanceExecutor:
             return data.get("rows", [])
         return data if status == 200 and isinstance(data, list) else []
 
+    def execute_futures_transfer(self, amount: float, direction: str = "spot_to_futures", asset: str = "USDT") -> Dict:
+        """
+        Transfer funds internally between Spot and USD-M Futures via Binance SAPI.
+        direction: 'spot_to_futures' (type=1) or 'futures_to_spot' (type=2)
+        """
+        if self.mode == "paper":
+            return {"tranId": 999999, "status": "CONFIRMED", "simulated": True, "amount": amount, "direction": direction}
+
+        transfer_type = 1 if direction in ["spot_to_futures", "1", 1] else 2
+        params = {
+            "asset": asset.upper(),
+            "amount": round(float(amount), 4),
+            "type": transfer_type
+        }
+        status, data = self._send_signed("POST", f"{self.base_url}/sapi/v1/futures/transfer", params)
+        if status == 200 and isinstance(data, dict) and "tranId" in data:
+            logger.info(f"✅ SAPI Futures Transfer SUCCESS: {amount} {asset} ({direction}) | TranId: {data['tranId']}")
+            return {"status": "SUCCESS", "tranId": data["tranId"], "amount": amount, "direction": direction}
+        
+        logger.error(f"❌ SAPI Futures Transfer FAILED ({status}): {data}")
+        return {"status": "FAILED", "error": str(data), "http_status": status}
+
 

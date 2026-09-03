@@ -19,6 +19,13 @@ export default function PortfolioPage() {
   const [transfers, setTransfers] = useState<any[]>([])
   const [historyLoading, setHistoryLoading] = useState(false)
 
+  // Interactive transfer state
+  const [showTransferModal, setShowTransferModal] = useState(false)
+  const [transferAmount, setTransferAmount] = useState('2.0')
+  const [transferDirection, setTransferDirection] = useState<'spot_to_futures' | 'futures_to_spot'>('spot_to_futures')
+  const [isTransferring, setIsTransferring] = useState(false)
+  const [transferFeedback, setTransferFeedback] = useState<string | null>(null)
+
   useEffect(() => {
     refresh()
     loadSapiData()
@@ -37,6 +44,29 @@ export default function PortfolioPage() {
       setTransfers(Array.isArray(tr) ? tr : [])
     } finally {
       setHistoryLoading(false)
+    }
+  }
+
+  const handleExecuteTransfer = async () => {
+    const amt = parseFloat(transferAmount)
+    if (isNaN(amt) || amt < 1.0) {
+      alert('Jumlah transfer minimum adalah 1.0 USDT')
+      return
+    }
+    setIsTransferring(true)
+    try {
+      const res = await api.executeTransfer(amt, transferDirection)
+      if (res.status === 'SUCCESS' || res.tranId) {
+        setTransferFeedback(`✅ Berhasil mentransfer ${amt} USDT (${transferDirection === 'spot_to_futures' ? 'Spot ➔ Futures' : 'Futures ➔ Spot'}) | TranID: ${res.tranId}`)
+        setShowTransferModal(false)
+        setTimeout(() => { refresh(); loadSapiData(); setTransferFeedback(null); }, 4000)
+      } else {
+        alert(`Gagal transfer: ${res.error || JSON.stringify(res)}`)
+      }
+    } catch (e: any) {
+      alert(`Gagal transfer: ${e.message}`)
+    } finally {
+      setIsTransferring(false)
     }
   }
 
@@ -431,52 +461,167 @@ export default function PortfolioPage() {
 
       {/* TAB 6: Internal Transfers */}
       {activeTab === 'transfers' && (
-        <div className="card p-3">
-          <SectionHeader
-            title="Riwayat Transfer Internal Spot <-> Futures (SAPI)"
-            subtitle="Mutasi perpindahan dana saldo margin antara dompet Spot dan USD(M) Futures"
-          />
-          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
-            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
-              <thead>
-                <tr style={{ borderBottom: '1px solid var(--bg-border)', color: 'var(--text-muted)', textAlign: 'left' }}>
-                  <th style={{ padding: '6px 4px' }}>Waktu</th>
-                  <th style={{ padding: '6px 4px' }}>Aset</th>
-                  <th style={{ padding: '6px 4px' }}>Jumlah</th>
-                  <th style={{ padding: '6px 4px' }}>Arah</th>
-                  <th style={{ padding: '6px 4px' }}>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {transfers.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>
-                      Belum ada riwayat transfer internal Spot/Futures.
-                    </td>
+        <div className="flex flex-col gap-2.5">
+          {/* Top Action Banner */}
+          <div className="card card-lime p-3 flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)' }}>
+                Transfer Saldo Instan (Binance SAPI)
+              </div>
+              <p style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                Pindahkan USDT antara Dompet Spot dan Dompet Margin USD(M) Futures (Bebas Biaya / Zero Fee)
+              </p>
+            </div>
+            <button
+              className="btn btn-lime btn-xs"
+              onClick={() => setShowTransferModal(true)}
+              style={{ padding: '4px 10px', fontSize: 10.5 }}
+            >
+              <ArrowRightLeft size={11} />
+              <span>Transfer Dana Spot ⇄ Futures</span>
+            </button>
+          </div>
+
+          {transferFeedback && (
+            <div className="p-2 rounded bg-deep border border-bull flex items-center gap-2">
+              <CheckCircle2 size={13} style={{ color: 'var(--bull)' }} />
+              <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--bull)' }}>{transferFeedback}</span>
+            </div>
+          )}
+
+          <div className="card p-3">
+            <SectionHeader
+              title="Riwayat Mutasi Transfer Internal Spot <-> Futures (SAPI)"
+              subtitle="Catatan log transaksi perpindahan saldo resmi dari Binance SAPI"
+            />
+            <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--bg-border)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                    <th style={{ padding: '6px 4px' }}>Waktu</th>
+                    <th style={{ padding: '6px 4px' }}>Aset</th>
+                    <th style={{ padding: '6px 4px' }}>Jumlah</th>
+                    <th style={{ padding: '6px 4px' }}>Arah</th>
+                    <th style={{ padding: '6px 4px' }}>Status</th>
                   </tr>
-                ) : (
-                  transfers.map((t, i) => {
-                    const timeStr = t.timestamp ? new Date(t.timestamp).toLocaleString() : '—'
-                    const direction = t.type === '1' ? 'SPOT ➔ FUTURES' : 'FUTURES ➔ SPOT'
-                    return (
-                      <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 34 }}>
-                        <td style={{ padding: '6px 4px', color: 'var(--text-muted)' }}>{timeStr}</td>
-                        <td style={{ padding: '6px 4px', fontWeight: 700, color: 'var(--accent)' }}>{t.asset}</td>
-                        <td style={{ padding: '6px 4px', fontWeight: 600 }}>${Number(t.amount || 0).toFixed(2)}</td>
-                        <td style={{ padding: '6px 4px' }}>
-                          <span className={`badge ${t.type === '1' ? 'badge-warn' : 'badge-bull'}`} style={{ fontSize: 8 }}>
-                            {direction}
-                          </span>
-                        </td>
-                        <td style={{ padding: '6px 4px' }}>
-                          <span className="badge badge-bull" style={{ fontSize: 8 }}>{t.status || 'CONFIRMED'}</span>
-                        </td>
-                      </tr>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {transfers.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>
+                        Belum ada riwayat transfer internal Spot/Futures dalam 90 hari terakhir.
+                      </td>
+                    </tr>
+                  ) : (
+                    transfers.map((t, i) => {
+                      const timeStr = t.timestamp ? new Date(t.timestamp).toLocaleString() : '—'
+                      const direction = t.type === '1' ? 'SPOT ➔ FUTURES' : 'FUTURES ➔ SPOT'
+                      return (
+                        <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 34 }}>
+                          <td style={{ padding: '6px 4px', color: 'var(--text-muted)' }}>{timeStr}</td>
+                          <td style={{ padding: '6px 4px', fontWeight: 700, color: 'var(--accent)' }}>{t.asset}</td>
+                          <td style={{ padding: '6px 4px', fontWeight: 600 }}>${Number(t.amount || 0).toFixed(2)}</td>
+                          <td style={{ padding: '6px 4px' }}>
+                            <span className={`badge ${t.type === '1' ? 'badge-warn' : 'badge-bull'}`} style={{ fontSize: 8 }}>
+                              {direction}
+                            </span>
+                          </td>
+                          <td style={{ padding: '6px 4px' }}>
+                            <span className="badge badge-bull" style={{ fontSize: 8 }}>{t.status || 'CONFIRMED'}</span>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INTERACTIVE SAPI TRANSFER MODAL */}
+      {showTransferModal && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(5px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: 16
+          }}
+          onClick={() => setShowTransferModal(false)}
+        >
+          <div className="card p-4" style={{ maxWidth: 400, width: '100%' }} onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-3 border-b border-border pb-2">
+              <div className="flex items-center gap-2">
+                <ArrowRightLeft size={16} style={{ color: 'var(--accent)' }} />
+                <h3 style={{ fontSize: 13.5, fontWeight: 800 }}>Transfer Saldo Internal Binance</h3>
+              </div>
+              <button className="btn btn-ghost btn-xs" onClick={() => setShowTransferModal(false)}>✕</button>
+            </div>
+
+            {/* Direction Selector */}
+            <div className="flex flex-col gap-1.5 mb-3">
+              <label style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Arah Transfer:</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                <button
+                  className={`btn btn-xs ${transferDirection === 'spot_to_futures' ? 'btn-lime' : 'btn-ghost'}`}
+                  onClick={() => setTransferDirection('spot_to_futures')}
+                  style={{ padding: '6px 8px', fontSize: 10 }}
+                >
+                  Spot ➔ Futures
+                </button>
+                <button
+                  className={`btn btn-xs ${transferDirection === 'futures_to_spot' ? 'btn-lime' : 'btn-ghost'}`}
+                  onClick={() => setTransferDirection('futures_to_spot')}
+                  style={{ padding: '6px 8px', fontSize: 10 }}
+                >
+                  Futures ➔ Spot
+                </button>
+              </div>
+            </div>
+
+            {/* Amount Input & Quick Chips */}
+            <div className="flex flex-col gap-1.5 mb-3">
+              <div className="flex items-center justify-between" style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                <span>Jumlah (USDT):</span>
+                <span>Spot Bebas: ${spotAssets.find((a: any) => a.asset === 'USDT')?.free.toFixed(2) || '0.00'}</span>
+              </div>
+              <input
+                type="number"
+                step="0.1"
+                min="1.0"
+                value={transferAmount}
+                onChange={e => setTransferAmount(e.target.value)}
+                className="w-full p-2 rounded mono"
+                style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 13 }}
+              />
+
+              <div className="flex items-center gap-1.5 mt-1">
+                {['2.0', '5.0', '10.0'].map(v => (
+                  <button
+                    key={v}
+                    className="btn btn-ghost btn-xs flex-1"
+                    onClick={() => setTransferAmount(v)}
+                    style={{ fontSize: 9.5, padding: '2px' }}
+                  >
+                    ${v}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-2 mt-4 pt-2 border-t border-border">
+              <button className="btn btn-ghost btn-sm" onClick={() => setShowTransferModal(false)}>Batal</button>
+              <button className="btn btn-lime btn-sm" onClick={handleExecuteTransfer} disabled={isTransferring}>
+                {isTransferring ? 'Memproses Transfer...' : 'Konfirmasi Transfer SAPI'}
+              </button>
+            </div>
           </div>
         </div>
       )}

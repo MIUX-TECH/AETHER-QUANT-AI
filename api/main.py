@@ -505,6 +505,18 @@ def get_binance_transfers(limit: int = 20):
         return []
     return orchestrator.executor.get_transfer_history(limit)
 
+class BinanceTransferPayload(BaseModel):
+    amount: float
+    direction: str = "spot_to_futures"
+    asset: str = "USDT"
+
+@app.post("/api/binance/transfer")
+def execute_transfer(payload: BinanceTransferPayload, verified: bool = Depends(verify_master_token)):
+    if not orchestrator or not hasattr(orchestrator, "executor"):
+        raise HTTPException(503, "Orchestrator executor unavailable")
+    res = orchestrator.executor.execute_futures_transfer(payload.amount, payload.direction, payload.asset)
+    return res
+
 
 @app.get("/api/history")
 def get_history(limit: int = 50, months: int = 1, symbol: str = None, strategy: str = None):

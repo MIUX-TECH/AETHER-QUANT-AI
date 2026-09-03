@@ -112,4 +112,6 @@ export const api = {
     request<{ symbol: string; interval: string; candles: any[] }>(`/candles/${symbol}?interval=${interval}&limit=${limit}`),
   switchMode: (mode: string, api_key?: string, secret_key?: string) =>
     request<any>('/mode/switch', { method: 'POST', body: JSON.stringify({ mode, api_key, secret_key }) }),
+  executeTransfer: (amount: number, direction = 'spot_to_futures', asset = 'USDT') =>
+    request<any>('/binance/transfer', { method: 'POST', body: JSON.stringify({ amount, direction, asset }) }),
 }
