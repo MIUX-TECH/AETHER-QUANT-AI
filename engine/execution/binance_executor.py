@@ -10,7 +10,7 @@ import hmac
 import hashlib
 import uuid
 import requests
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple, Any
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
@@ -158,6 +158,20 @@ class BinanceExecutor:
     # LIVE ORDER EXECUTION (with retry)
     # ============================================================
 
+    def _format_qty(self, symbol: str, qty: float) -> str:
+        """Format quantity string according to Binance precision rules."""
+        if "BTC" in symbol:
+            return f"{qty:.5f}"
+        elif "ETH" in symbol:
+            return f"{qty:.4f}"
+        elif any(c in symbol for c in ["SOL", "BNB", "AVAX", "LINK", "DOT", "NEAR"]):
+            return f"{qty:.2f}"
+        elif any(c in symbol for c in ["PEPE", "SHIB", "BONK", "FLOKI"]):
+            return f"{int(qty)}"
+        elif any(c in symbol for c in ["DOGE", "XRP", "TRX", "ADA", "MATIC"]):
+            return f"{qty:.1f}"
+        return f"{qty:.4f}"
+
     def _live_spot_order(self, symbol: str, side: str, order_type: str,
                           qty: float = None, price: float = None,
                           quote_qty: float = None) -> Dict:
@@ -166,16 +180,17 @@ class BinanceExecutor:
             "side": side,
             "type": order_type,
             "timestamp": int(time.time() * 1000),
-            "recvWindow": 5000
+            "recvWindow": 60000
         }
         if order_type == "MARKET":
             if quote_qty:
                 params["quoteOrderQty"] = round(quote_qty, 2)
             elif qty:
-                params["quantity"] = qty
+                params["quantity"] = self._format_qty(symbol, qty)
         else:
-            params["quantity"] = qty
-            params["price"] = price
+            params["quantity"] = self._format_qty(symbol, qty) if qty else "0.001"
+            if price:
+                params["price"] = f"{price:.4f}" if "BTC" not in symbol else f"{price:.2f}"
             params["timeInForce"] = "GTC"
 
         return self._signed_post(f"{self.base_url}/api/v3/order", params)
@@ -248,89 +263,92 @@ class BinanceExecutor:
         }
         return self._signed_post(f"{self.base_url}/api/v3/order/oco", params)
 
-    def _sign(self, params: dict) -> str:
-        params.setdefault("recvWindow", 60000)
-        params["timestamp"] = int(time.time() * 1000)
-        query = "&".join(f"{k}={v}" for k, v in sorted(params.items()) if k != "signature")
-        return hmac.new(self.secret_key.encode(), query.encode(), hashlib.sha256).hexdigest()
+    def _send_signed(self, method: str, url: str, params: dict = None) -> Tuple[int, Any]:
+        """Send authenticated request with exact URL-encoded signature."""
+        import urllib.parse
+        p = dict(params or {})
+        p.setdefault("recvWindow", 60000)
+        p["timestamp"] = int(time.time() * 1000)
+        p.pop("signature", None)
 
-    def _signed_post(self, url: str, params: dict, futures: bool = False) -> Dict:
-        params["signature"] = self._sign(params)
+        query = urllib.parse.urlencode(sorted(p.items()))
+        sig = hmac.new(self.secret_key.encode("utf-8"), query.encode("utf-8"), hashlib.sha256).hexdigest()
+        full_url = f"{url}?{query}&signature={sig}"
+
         for attempt in range(self.max_retries):
             try:
-                r = self.session.post(url, params=params, timeout=10)
+                if method.upper() == "GET":
+                    r = self.session.get(full_url, timeout=10)
+                elif method.upper() == "POST":
+                    r = self.session.post(full_url, timeout=10)
+                elif method.upper() == "DELETE":
+                    r = self.session.delete(full_url, timeout=10)
+                else:
+                    raise ValueError(f"Unsupported HTTP method: {method}")
+
+                try:
+                    data = r.json()
+                except Exception:
+                    data = {"text": r.text}
+
                 if r.status_code == 200:
-                    return r.json()
-                error = r.json()
-                code = error.get("code", 0)
+                    return 200, data
+
+                code = data.get("code", 0) if isinstance(data, dict) else 0
                 if code in [-1121, -1100, -2010, -1013]:
-                    logger.error(f"Order rejected: {error}")
-                    return {"error": error, "status": "REJECTED"}
-                logger.warning(f"Order attempt {attempt+1} failed: {error}")
+                    logger.error(f"Order rejected ({code}): {data}")
+                    return r.status_code, data
+
+                logger.warning(f"{method} {url} attempt {attempt+1} failed ({r.status_code}): {data}")
             except Exception as e:
-                logger.error(f"Order execution error attempt {attempt+1}: {e}")
+                logger.error(f"{method} {url} attempt {attempt+1} exception: {e}")
+
             if attempt < self.max_retries - 1:
                 time.sleep(self.retry_delay * (attempt + 1))
-        return {"error": "Max retries exceeded", "status": "FAILED"}
+
+        return 500, {"error": "Max retries exceeded"}
+
+    def _signed_post(self, url: str, params: dict, futures: bool = False) -> Dict:
+        status, data = self._send_signed("POST", url, params)
+        return data if isinstance(data, dict) else {"error": str(data), "status": "FAILED"}
 
     def _signed_delete(self, url: str, params: dict) -> Dict:
-        params["signature"] = self._sign(params)
-        try:
-            r = self.session.delete(url, params=params, timeout=10)
-            return r.json()
-        except Exception as e:
-            logger.error(f"Cancel order failed: {e}")
-            return {"error": str(e)}
+        status, data = self._send_signed("DELETE", url, params)
+        return data if isinstance(data, dict) else {"error": str(data)}
 
     def get_open_orders(self, symbol: str = None, futures: bool = False) -> List[Dict]:
         if self.mode == "paper":
             return []
         base = self.futures_url if futures else self.base_url
         endpoint = "/fapi/v1/openOrders" if futures else "/api/v3/openOrders"
-        params = {"timestamp": int(time.time() * 1000)}
+        params = {}
         if symbol:
             params["symbol"] = symbol
-        params["signature"] = self._sign(params)
-        try:
-            r = self.session.get(f"{base}{endpoint}", params=params, timeout=10)
-            return r.json() if r.status_code == 200 else []
-        except Exception as e:
-            logger.error(f"get_open_orders failed: {e}")
-            return []
+        status, data = self._send_signed("GET", f"{base}{endpoint}", params)
+        return data if status == 200 and isinstance(data, list) else []
 
     def get_account_balances(self) -> Dict[str, Dict]:
         """Fetch all non-zero Spot balances from Binance."""
         if self.mode == "paper":
             return {"USDT": {"free": 1000.0, "locked": 0.0, "total": 1000.0}}
-        params = {"timestamp": int(time.time() * 1000)}
-        params["signature"] = self._sign(params)
-        try:
-            r = self.session.get(f"{self.base_url}/api/v3/account", params=params, timeout=10)
-            if r.status_code == 200:
-                data = r.json()
-                res = {}
-                for b in data.get("balances", []):
-                    free = float(b.get("free", 0))
-                    locked = float(b.get("locked", 0))
-                    total = free + locked
-                    if total > 0.000001:
-                        res[b["asset"]] = {"free": free, "locked": locked, "total": total}
-                return res
-            logger.warning(f"get_account_balances status {r.status_code}: {r.text}")
-        except Exception as e:
-            logger.error(f"get_account_balances error: {e}")
+        status, data = self._send_signed("GET", f"{self.base_url}/api/v3/account")
+        if status == 200 and isinstance(data, dict):
+            res = {}
+            for b in data.get("balances", []):
+                free = float(b.get("free", 0))
+                locked = float(b.get("locked", 0))
+                total = free + locked
+                if total > 0.000001:
+                    res[b["asset"]] = {"free": free, "locked": locked, "total": total}
+            return res
         return {"USDT": {"free": 10000.0, "locked": 0.0, "total": 10000.0}}
 
     def get_my_trades(self, symbol: str = "BTCUSDT", limit: int = 50) -> List[Dict]:
         """Fetch recent executions for a symbol."""
         if self.mode == "paper":
             return []
-        params = {"symbol": symbol, "limit": limit, "timestamp": int(time.time() * 1000)}
-        params["signature"] = self._sign(params)
-        try:
-            r = self.session.get(f"{self.base_url}/api/v3/myTrades", params=params, timeout=10)
-            return r.json() if r.status_code == 200 and isinstance(r.json(), list) else []
-        except Exception as e:
-            logger.error(f"get_my_trades error {symbol}: {e}")
-            return []
+        params = {"symbol": symbol, "limit": limit}
+        status, data = self._send_signed("GET", f"{self.base_url}/api/v3/myTrades", params)
+        return data if status == 200 and isinstance(data, list) else []
+
 

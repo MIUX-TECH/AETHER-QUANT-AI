@@ -122,34 +122,59 @@ class PortfolioManager:
 
     def open_position(self, symbol: str, side: str, trade_type: str,
                        order_result: Dict, sizing: Dict, signal: Dict) -> Dict:
-        """Record opening a position in state."""
+        """Record opening a position in state with accurate Binance fill data."""
+        # Calculate real fill price
+        fill_price = float(order_result.get("price", 0) or 0)
+        cummulative_quote = float(order_result.get("cummulativeQuoteQty", 0) or 0)
+        executed_qty = float(order_result.get("executedQty", 0) or 0)
+
+        if fill_price <= 0:
+            if cummulative_quote > 0 and executed_qty > 0:
+                fill_price = cummulative_quote / executed_qty
+            elif order_result.get("fills") and len(order_result["fills"]) > 0:
+                fill_price = float(order_result["fills"][0].get("price", 0))
+            else:
+                fill_price = float(sizing.get("entry_price", 0) or 0)
+
+        position_usdt = cummulative_quote if cummulative_quote > 0 else float(sizing.get("position_usdt", 0))
+        if executed_qty <= 0:
+            executed_qty = position_usdt / fill_price if fill_price > 0 else 0
+
+        # Calculate actual fee from Binance fills
+        fee = 0.0
+        if order_result.get("fills"):
+            for f in order_result["fills"]:
+                fee += float(f.get("commission", 0))
+        else:
+            fee = float(order_result.get("fee", 0) or 0)
+
         position = {
             "symbol": symbol,
             "side": side,
             "trade_type": trade_type,
-            "entry_price": order_result.get("price", 0),
-            "qty": order_result.get("executedQty", 0),
-            "position_usdt": sizing.get("position_usdt", 0),
+            "entry_price": round(fill_price, 4),
+            "qty": executed_qty,
+            "position_usdt": round(position_usdt, 2),
             "sl_price": sizing.get("sl_price", 0),
             "tp_price": sizing.get("tp_price", 0),
             "trailing_stop_pct": sizing.get("trailing_stop_pct", 0),
             "trailing_stop_price": None,
             "leverage": sizing.get("leverage", 1),
-            "margin_used": sizing.get("position_usdt", 0) / max(sizing.get("leverage", 1), 1),
-            "fee": order_result.get("fee", 0),
+            "margin_used": round(position_usdt / max(sizing.get("leverage", 1), 1), 2),
+            "fee": round(fee, 6),
             "opened_at": datetime.utcnow().isoformat(),
-            "current_price": order_result.get("price", 0),
-            "current_value": sizing.get("position_usdt", 0),
+            "current_price": round(fill_price, 4),
+            "current_value": round(position_usdt, 2),
             "unrealized_pnl": 0,
             "unrealized_pnl_pct": 0,
             "signal": signal.get("signal", ""),
             "confidence": signal.get("confidence", 0),
             "strategy": signal.get("strategy", "ai_signal"),
             "regime": signal.get("regime", {}).get("regime", "unknown"),
-            "order_id": order_result.get("orderId", ""),
+            "order_id": str(order_result.get("orderId", "")),
             "status": "active",
             "partial_tp_taken": False,
-            "highest_price": order_result.get("price", 0),
+            "highest_price": round(fill_price, 4),
         }
         return position
 
