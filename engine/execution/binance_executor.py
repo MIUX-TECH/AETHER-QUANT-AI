@@ -385,4 +385,30 @@ class BinanceExecutor:
         status, data = self._send_signed("GET", f"{self.base_url}/api/v3/myTrades", params)
         return data if status == 200 and isinstance(data, list) else []
 
+    def get_deposit_history(self, limit: int = 20) -> List[Dict]:
+        """Fetch deposit history via SAPI."""
+        if self.mode == "paper":
+            return []
+        params = {"limit": limit}
+        status, data = self._send_signed("GET", f"{self.base_url}/sapi/v1/capital/deposit/hisrec", params)
+        return data if status == 200 and isinstance(data, list) else []
+
+    def get_withdrawal_history(self, limit: int = 20) -> List[Dict]:
+        """Fetch withdrawal history via SAPI."""
+        if self.mode == "paper":
+            return []
+        params = {"limit": limit}
+        status, data = self._send_signed("GET", f"{self.base_url}/sapi/v1/capital/withdraw/history", params)
+        return data if status == 200 and isinstance(data, list) else []
+
+    def get_transfer_history(self, limit: int = 20) -> List[Dict]:
+        """Fetch internal Spot <-> Futures transfer history via SAPI."""
+        if self.mode == "paper":
+            return []
+        params = {"asset": "USDT", "startTime": int((time.time() - 86400 * 90) * 1000), "limit": limit}
+        status, data = self._send_signed("GET", f"{self.base_url}/sapi/v1/futures/transfer", params)
+        if status == 200 and isinstance(data, dict):
+            return data.get("rows", [])
+        return data if status == 200 and isinstance(data, list) else []
+
 

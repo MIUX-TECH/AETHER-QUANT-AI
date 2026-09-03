@@ -408,6 +408,53 @@ def get_open_orders():
         pass
     return []
 
+class ClosePositionPayload(BaseModel):
+    symbol: str
+    trade_type: str = "spot"
+
+@app.post("/api/positions/close")
+def close_single_position(payload: ClosePositionPayload, verified: bool = Depends(verify_master_token)):
+    if not orchestrator:
+        raise HTTPException(503)
+    pos = orchestrator.state.get("positions", {}).get(payload.trade_type, {}).get(payload.symbol)
+    if not pos:
+        raise HTTPException(404, detail="Position not found")
+    price = orchestrator.market_data.get_price(payload.symbol) or pos.get("current_price", 0)
+    closed = orchestrator._close_position(payload.symbol, pos, "manual_close", price, payload.trade_type)
+    return {"status": "ok", "closed": closed}
+
+@app.post("/api/positions/close-all")
+def close_all_positions(verified: bool = Depends(verify_master_token)):
+    if not orchestrator:
+        raise HTTPException(503)
+    exits = []
+    for ttype in ["spot", "futures"]:
+        positions = list(orchestrator.state.get("positions", {}).get(ttype, {}).items())
+        for sym, pos in positions:
+            price = orchestrator.market_data.get_price(sym) or pos.get("current_price", 0)
+            res = orchestrator._close_position(sym, pos, "emergency_close_all", price, ttype)
+            if res:
+                exits.append(res)
+    return {"status": "ok", "closed_count": len(exits), "exits": exits}
+
+@app.get("/api/binance/deposits")
+def get_binance_deposits(limit: int = 20):
+    if not orchestrator or not hasattr(orchestrator, "executor"):
+        return []
+    return orchestrator.executor.get_deposit_history(limit)
+
+@app.get("/api/binance/withdrawals")
+def get_binance_withdrawals(limit: int = 20):
+    if not orchestrator or not hasattr(orchestrator, "executor"):
+        return []
+    return orchestrator.executor.get_withdrawal_history(limit)
+
+@app.get("/api/binance/transfers")
+def get_binance_transfers(limit: int = 20):
+    if not orchestrator or not hasattr(orchestrator, "executor"):
+        return []
+    return orchestrator.executor.get_transfer_history(limit)
+
 
 @app.get("/api/history")
 def get_history(limit: int = 50, months: int = 1, symbol: str = None, strategy: str = None):

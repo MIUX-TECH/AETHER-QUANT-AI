@@ -80,6 +80,13 @@ export const api = {
   triggerScan: () => request<any>('/scan/trigger', { method: 'POST' }),
   getPortfolio: () => request<any>('/portfolio'),
   getPositions: () => request<any>('/positions'),
+  closePosition: (symbol: string, trade_type = 'spot') =>
+    request<any>('/positions/close', { method: 'POST', body: JSON.stringify({ symbol, trade_type }) }),
+  closeAllPositions: () =>
+    request<any>('/positions/close-all', { method: 'POST' }),
+  getDeposits: (limit = 20) => request<any[]>(`/binance/deposits?limit=${limit}`),
+  getWithdrawals: (limit = 20) => request<any[]>(`/binance/withdrawals?limit=${limit}`),
+  getTransfers: (limit = 20) => request<any[]>(`/binance/transfers?limit=${limit}`),
   getOpenOrders: () => request<any[]>('/orders/open'),
   getWallet: () => request<any>('/wallet'),
   getHistory: (params?: { limit?: number; months?: number; symbol?: string; strategy?: string }) => {

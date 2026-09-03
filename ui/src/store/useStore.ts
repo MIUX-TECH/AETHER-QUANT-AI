@@ -21,6 +21,12 @@ export interface Portfolio {
   drawdown_pct: number
   available_cash: number
   last_updated: string | null
+  btc_vault?: {
+    btc_stack?: number
+    total_invested_usdt?: number
+    average_cost_basis?: number
+    last_buy_at?: string
+  }
 }
 
 export interface Risk {
@@ -29,6 +35,7 @@ export interface Risk {
   cooldown_active: boolean
   cooldown_until: string | null
   risk_off: boolean
+  risk_off_active?: boolean
   capital_preservation: boolean
   drawdown_pct: number
   total_exposure_pct: number

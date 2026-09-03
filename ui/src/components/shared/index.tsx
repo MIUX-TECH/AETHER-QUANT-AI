@@ -10,15 +10,16 @@ interface StatCardProps {
   sub?: string
   change?: number
   accent?: boolean
+  bull?: boolean
   warn?: boolean
   danger?: boolean
   icon?: React.ReactNode
   mono?: boolean
 }
 
-export function StatCard({ label, value, sub, change, accent, warn, danger, icon, mono }: StatCardProps) {
+export function StatCard({ label, value, sub, change, accent, bull, warn, danger, icon, mono }: StatCardProps) {
   const cardBorder = accent ? 'card card-lime' : warn ? 'card' : danger ? 'card' : 'card'
-  const valueColor = accent ? 'accent' : warn ? 'warn' : danger ? 'bear' : 'var(--text-primary)'
+  const valueColor = accent ? 'var(--accent)' : bull ? 'var(--bull)' : warn ? 'var(--warn)' : danger ? 'var(--bear)' : 'var(--text-primary)'
   return (
     <div className={`${cardBorder}`} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
       <div className="flex items-center justify-between gap-1.5 mb-1.5">
