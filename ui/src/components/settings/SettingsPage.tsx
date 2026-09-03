@@ -295,18 +295,18 @@ export default function SettingsPage() {
       {/* TAB 2: Risk Management */}
       {activeTab === 'risk' && (
         <div className="card p-3">
-          <SectionHeader title="Aturan & Batas Manajemen Risiko" subtitle="Parameter proteksi modal ketat dan Circuit Breaker Drawdown 3%" />
+          <SectionHeader title="Aturan & Batas Manajemen Risiko" subtitle="Parameter proteksi modal dan pembatasan eksposur matematis" />
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12, marginTop: 8 }}>
             {[
-              { label: 'Batas Risiko Maks per Trade', val: `${(Number(tCfg.risk?.max_risk_per_trade_pct || 0.01) * 100).toFixed(1)}%`, desc: 'Batas kerugian maksimal per posisi' },
-              { label: 'Batas Eksposur per Koin', val: `${(Number(tCfg.risk?.max_exposure_per_coin_pct || 0.10) * 100).toFixed(0)}%`, desc: 'Maksimum alokasi koin tunggal (Cap Sizing)' },
-              { label: 'Hard Cap Maks per Order', val: `$${tCfg.risk?.max_order_usdt_cap || 100.0}`, desc: 'Batas absolut USDT per single entry order' },
-              { label: 'Batas Kerugian Harian', val: `${(Number(tCfg.risk?.max_daily_loss_pct || 0.03) * 100).toFixed(1)}%`, desc: 'Daily stop-loss threshold' },
-              { label: 'Batas Drawdown (Auto-Kill Switch)', val: `${(Number(tCfg.risk?.max_drawdown_pct || 0.03) * 100).toFixed(1)}%`, desc: 'Pemicu sakelar darurat otomatis' },
-              { label: 'Cooldown Loss Streak', val: `${tCfg.risk?.cooldown_after_loss_streak || 3}x Trade`, desc: 'Pemicu jeda setelah 3 kerugian beruntun' },
+              { label: 'Batas Risiko Maks per Trade', val: `${(Number(tCfg.risk?.max_risk_per_trade_pct || 0.02) * 100).toFixed(1)}%`, desc: 'Batas kerugian maksimal per posisi' },
+              { label: 'Batas Eksposur Portofolio', val: `${(Number(tCfg.risk?.max_portfolio_exposure_pct || 0.85) * 100).toFixed(0)}%`, desc: 'Maks total modal dalam pasar' },
+              { label: 'Batas Eksposur per Koin', val: `${(Number(tCfg.risk?.max_exposure_per_coin_pct || 0.25) * 100).toFixed(0)}%`, desc: 'Diversifikasi batas per aset tunggal' },
+              { label: 'Batas Kerugian Harian', val: `${(Number(tCfg.risk?.max_daily_loss_pct || 0.05) * 100).toFixed(1)}%`, desc: 'Daily stop-loss limit' },
+              { label: 'Batas Maksimum Drawdown', val: `${(Number(tCfg.risk?.max_drawdown_pct || 0.15) * 100).toFixed(0)}%`, desc: 'Batas penurunan modal dari puncak (15%)' },
+              { label: 'Cooldown Loss Streak', val: `${tCfg.risk?.cooldown_after_loss_streak || 3}x Trade`, desc: 'Pemicu jeda setelah kerugian beruntun' },
               { label: 'Durasi Cooldown', val: `${tCfg.risk?.cooldown_duration_minutes || 60} Menit`, desc: 'Waktu jeda cooling-off mesin' },
-              { label: 'Ambang Keyakinan Spot', val: `${(Number(tCfg.risk?.min_confidence_to_trade || 0.65) * 100).toFixed(0)}%`, desc: 'Skor minimal untuk eksekusi spot' },
-              { label: 'Ambang Keyakinan Futures', val: `${(Number(tCfg.risk?.min_confidence_futures || 0.75) * 100).toFixed(0)}%`, desc: 'Skor minimal untuk eksekusi futures' },
+              { label: 'Ambang Keyakinan Minimum Spot', val: `${(Number(tCfg.risk?.min_confidence_to_trade || 0.60) * 100).toFixed(0)}%`, desc: 'Skor minimal untuk eksekusi spot' },
+              { label: 'Ambang Keyakinan Minimum Futures', val: `${(Number(tCfg.risk?.min_confidence_futures || 0.75) * 100).toFixed(0)}%`, desc: 'Skor minimal untuk eksekusi futures' },
             ].map((item, i) => (
               <div key={i} className="p-2.5 rounded-md" style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)' }}>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>{item.label}</div>

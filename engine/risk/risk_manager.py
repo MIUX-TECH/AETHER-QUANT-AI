@@ -94,7 +94,7 @@ class RiskManager:
 
         if trade_type == "spot":
             # Risk per trade, scaled by confidence
-            base_risk_pct = self.risk_cfg.get("max_risk_per_trade_pct", 0.01)
+            base_risk_pct = self.risk_cfg.get("max_risk_per_trade_pct", 0.02)
             risk_pct = base_risk_pct * min(confidence / 0.7, 1.0)
 
             # SL distance using ATR
@@ -103,11 +103,8 @@ class RiskManager:
             if entry_price > 0 and sl_distance > 0:
                 risk_amount = equity * risk_pct
                 position_usdt = risk_amount / (sl_distance / entry_price)
-                
-                # Cap Sizing: Max % of portfolio per coin AND Hard USDT Cap per single order
-                max_exposure_coin = equity * self.risk_cfg.get("max_exposure_per_coin_pct", 0.10)
-                max_order_cap = self.risk_cfg.get("max_order_usdt_cap", 100.0)
-                position_usdt = min(position_usdt, max_exposure_coin, max_order_cap)
+                position_usdt = min(position_usdt,
+                                    equity * self.risk_cfg.get("max_exposure_per_coin_pct", 0.25))
                 position_qty = position_usdt / entry_price
 
                 sl_price = entry_price - sl_distance
@@ -119,7 +116,7 @@ class RiskManager:
         else:
             # Futures
             leverage = signal.get("suggested_leverage", self.futures_cfg.get("default_leverage", 3))
-            base_risk_pct = self.risk_cfg.get("max_futures_risk_pct", 0.02)
+            base_risk_pct = self.risk_cfg.get("max_futures_risk_pct", 0.03)
             risk_pct = base_risk_pct * min(confidence / 0.80, 1.0)
 
             sl_pct = self.futures_cfg.get("sl_pct", 0.025)
@@ -127,10 +124,6 @@ class RiskManager:
             risk_amount = equity * risk_pct
             notional = risk_amount / sl_pct
             position_usdt = notional / leverage
-
-            # Cap Sizing for Futures
-            max_futures_order_cap = self.risk_cfg.get("max_order_usdt_cap", 100.0)
-            position_usdt = min(position_usdt, max_futures_order_cap)
 
             sl_price_long = entry_price * (1 - sl_pct)
             tp_price_long = entry_price * (1 + self.futures_cfg.get("tp_pct", 0.06))
@@ -184,20 +177,16 @@ class RiskManager:
             risk_state["cooldown_until"] = cooldown_until.isoformat()
             logger.warning(f"Loss streak {streak} — entering cooldown for {cooldown_mins}m")
 
-        # Capital preservation mode & Auto-Kill Switch on Drawdown > 3%
+        # Capital preservation mode
         portfolio = state.get("portfolio", {})
         drawdown = portfolio.get("drawdown_pct", 0)
-        max_dd = self.risk_cfg.get("max_drawdown_pct", 0.03)
-        risk_off_threshold = self.risk_cfg.get("risk_off_mode_threshold", 0.02)
-
-        if drawdown >= risk_off_threshold:
+        if drawdown >= self.risk_cfg.get("risk_off_mode_threshold", 0.10):
             risk_state["risk_off_active"] = True
-            logger.warning(f"Drawdown {drawdown:.1%} reached risk-off threshold ({risk_off_threshold:.1%}) — risk-off active")
+            logger.warning(f"Drawdown {drawdown:.1%} — risk-off mode activated")
 
-        if drawdown >= max_dd:
+        if drawdown >= self.risk_cfg.get("max_drawdown_pct", 0.15) * 0.8:
             risk_state["capital_preservation_mode"] = True
-            state.setdefault("system", {})["kill_switch"] = True
-            logger.critical(f"🚨 CRITICAL CIRCUIT BREAKER: Drawdown {drawdown:.2%} exceeded max limit ({max_dd:.2%})! AUTO-KILL SWITCH ACTIVATED.")
+            logger.warning("Capital preservation mode activated")
 
         state["risk"] = risk_state
         return state
