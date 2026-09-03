@@ -346,6 +346,13 @@ class BinanceExecutor:
         """Fetch all non-zero Spot balances from Binance."""
         if self.mode == "paper":
             return {"USDT": {"free": 1000.0, "locked": 0.0, "total": 1000.0}}
+        
+        # Ensure fresh keys from environment if empty
+        if not self.api_key:
+            self.api_key = (os.getenv("BINANCE_TESTNET_API_KEY") or os.getenv("BINANCE_API_KEY") or "").strip()
+        if not self.secret_key:
+            self.secret_key = (os.getenv("BINANCE_TESTNET_SECRET_KEY") or os.getenv("BINANCE_SECRET_KEY") or "").strip()
+
         status, data = self._send_signed("GET", f"{self.base_url}/api/v3/account")
         if status == 200 and isinstance(data, dict):
             res = {}
@@ -356,6 +363,8 @@ class BinanceExecutor:
                 if total > 0.000001:
                     res[b["asset"]] = {"free": free, "locked": locked, "total": total}
             return res
+        
+        logger.error(f"get_account_balances failed ({status}): {data}")
         return {"USDT": {"free": 10000.0, "locked": 0.0, "total": 10000.0}}
 
     def get_my_trades(self, symbol: str = "BTCUSDT", limit: int = 50) -> List[Dict]:
