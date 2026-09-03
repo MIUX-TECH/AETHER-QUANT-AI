@@ -353,11 +353,23 @@ class BinanceExecutor:
 
     def get_account_balances(self) -> Dict[str, Dict]:
         """Fetch all non-zero Spot balances from Binance."""
-        # Ensure fresh keys from environment if empty
-        if not self.api_key:
-            self.api_key = (os.getenv("BINANCE_TESTNET_API_KEY") or os.getenv("BINANCE_API_KEY") or "").strip()
-        if not self.secret_key:
-            self.secret_key = (os.getenv("BINANCE_TESTNET_SECRET_KEY") or os.getenv("BINANCE_SECRET_KEY") or "").strip()
+        if self.mode == "live":
+            self.base_url = BINANCE_BASE
+            self.futures_url = FUTURES_BASE
+            if not self.api_key:
+                self.api_key = (os.getenv("BINANCE_API_KEY") or "").strip()
+            if not self.secret_key:
+                self.secret_key = (os.getenv("BINANCE_SECRET_KEY") or "").strip()
+        elif self.mode == "testnet":
+            self.base_url = BINANCE_TESTNET
+            self.futures_url = FUTURES_TESTNET
+            if not self.api_key:
+                self.api_key = (os.getenv("BINANCE_TESTNET_API_KEY") or "").strip()
+            if not self.secret_key:
+                self.secret_key = (os.getenv("BINANCE_TESTNET_SECRET_KEY") or "").strip()
+
+        if self.session and self.api_key:
+            self.session.headers.update({"X-MBX-APIKEY": self.api_key})
 
         if self.api_key and self.secret_key:
             status, data = self._send_signed("GET", f"{self.base_url}/api/v3/account")
@@ -367,7 +379,7 @@ class BinanceExecutor:
                     free = float(b.get("free", 0))
                     locked = float(b.get("locked", 0))
                     total = free + locked
-                    if total > 0.000001:
+                    if total > 0.00000001:
                         res[b["asset"]] = {"free": free, "locked": locked, "total": total}
                 return res
             logger.error(f"get_account_balances failed ({status}): {data}")
@@ -375,7 +387,14 @@ class BinanceExecutor:
         if self.mode == "paper":
             return {"USDT": {"free": 1000.0, "locked": 0.0, "total": 1000.0}}
         
-        return {"USDT": {"free": 10000.0, "locked": 0.0, "total": 10000.0}}
+        return {}
+
+    def get_futures_account(self) -> Dict:
+        """Fetch USD-M Futures account balances and margin."""
+        if self.mode == "paper":
+            return {"totalMarginBalance": "0.0", "availableBalance": "0.0", "positions": []}
+        status, data = self._send_signed("GET", f"{self.futures_url}/fapi/v2/account", futures=True)
+        return data if status == 200 and isinstance(data, dict) else {}
 
     def get_my_trades(self, symbol: str = "BTCUSDT", limit: int = 50) -> List[Dict]:
         """Fetch recent executions for a symbol."""

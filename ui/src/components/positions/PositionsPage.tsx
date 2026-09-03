@@ -18,7 +18,7 @@ export default function PositionsPage() {
   const spot = positions?.spot || []
   const futures = positions?.futures || []
   const total = spot.length + futures.length
-  const holdings = wallet?.assets?.filter(a => !['USDT', 'USD', 'USDC'].includes(a.asset) && a.total > 0) || []
+  const holdings = wallet?.assets?.filter((a: any) => !['USDT', 'USD', 'USDC'].includes(a.asset) && a.total > 0) || []
 
   useEffect(() => {
     refresh()

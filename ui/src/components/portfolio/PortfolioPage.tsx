@@ -5,15 +5,15 @@ import { StatCard, SectionHeader, PnlDisplay, fmt, fmtPrice } from '../shared'
 import {
   Briefcase, RefreshCw, PieChart, Shield, TrendingUp,
   Layers, CheckCircle2, Wallet, ArrowUpRight, ArrowDownRight,
-  ArrowDownLeft, ArrowRightLeft, Coins, Clock, ExternalLink
+  ArrowDownLeft, ArrowRightLeft, Coins, Clock, ExternalLink,
+  Percent, Sparkles
 } from 'lucide-react'
 import { api } from '../../utils/api'
 import { PieChart as RPieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts'
 
 export default function PortfolioPage() {
   const { portfolio, wallet, positions, risk, system, refresh, loading } = useStore()
-  const [alloc, setAlloc] = useState<any>(null)
-  const [activeTab, setActiveTab] = useState<'balances' | 'deposits' | 'withdrawals' | 'transfers' | 'allocations'>('balances')
+  const [activeTab, setActiveTab] = useState<'spot' | 'earn' | 'futures' | 'deposits' | 'withdrawals' | 'transfers' | 'allocations'>('spot')
   const [deposits, setDeposits] = useState<any[]>([])
   const [withdrawals, setWithdrawals] = useState<any[]>([])
   const [transfers, setTransfers] = useState<any[]>([])
@@ -40,35 +40,34 @@ export default function PortfolioPage() {
     }
   }
 
-  const assets = wallet?.assets || []
-  const totalEquityUSD = Number(wallet?.total_equity_usd || portfolio?.total_equity || 1000)
+  const allAssets = wallet?.assets || []
+  const spotAssets = allAssets.filter((a: any) => a.category !== 'earn')
+  const earnAssets = allAssets.filter((a: any) => a.category === 'earn')
+
+  const totalEquityUSD = Number(wallet?.total_equity_usd || portfolio?.total_equity || 0)
+  const spotUSD = Number(wallet?.spot_usd || 0)
+  const earnUSD = Number(wallet?.earn_usd || 0)
+  const futuresUSD = Number(wallet?.futures_usd || 0)
   const unrealized = Number(portfolio?.unrealized_pnl || 0)
   const realizedToday = Number(portfolio?.realized_pnl_today || 0)
   const drawdown = Number(portfolio?.drawdown_pct || 0) * 100
 
-  const allSpot = positions?.spot || []
-  const allFutures = positions?.futures || []
-  const deployedSpot = allSpot.reduce((sum: number, p: any) => sum + Number(p.position_usdt || p.cost || 0), 0)
-  const deployedFutures = allFutures.reduce((sum: number, p: any) => sum + Number(p.margin_used || p.margin || 0), 0)
-  const totalDeployed = deployedSpot + deployedFutures
-
-  const usdtAsset = assets.find(a => a.asset === 'USDT')
-  const freeUSDT = usdtAsset ? usdtAsset.free : Math.max(0, totalEquityUSD - totalDeployed)
-
   // BTC Vault stats
-  const btcVault = portfolio?.btc_vault || {}
-  const btcStack = Number(btcVault.btc_stack || 0)
-  const btcPrice = Number(assets.find(a => a.asset === 'BTC')?.price || 81500)
-  const btcVaultValUSD = btcStack * btcPrice
-  const btcInvestedUSD = Number(btcVault.total_invested_usdt || 0)
+  const btcSpot = spotAssets.find((a: any) => a.asset === 'BTC')?.total || 0
+  const btcEarn = earnAssets.find((a: any) => a.asset === 'LDBTC')?.total || 0
+  const btcStack = Number(portfolio?.btc_vault?.btc_stack || 0)
+  const totalBtc = Math.max(btcStack, btcSpot + btcEarn)
+  const btcPrice = Number(allAssets.find((a: any) => a.asset === 'BTC')?.price || 81500)
+  const btcVaultValUSD = totalBtc * btcPrice
+  const btcInvestedUSD = Number(portfolio?.btc_vault?.total_invested_usdt || 0)
 
   // Pie chart breakdown
   const colors = ['#A3E635', '#00F0FF', '#60A5FA', '#F59E0B', '#A855F7', '#EC4899', '#64748B']
-  const pieData = assets.map((a, i) => ({
-    name: a.asset,
+  const pieData = allAssets.map((a: any, i: number) => ({
+    name: a.underlying || a.asset,
     value: Number(a.usd_value || (a.total * a.price) || 0),
     color: colors[i % colors.length]
-  })).filter(d => d.value > 0.5)
+  })).filter((d: any) => d.value > 0.01)
 
   return (
     <div className="flex flex-col gap-3">
@@ -79,7 +78,7 @@ export default function PortfolioPage() {
             <Briefcase size={16} style={{ color: 'var(--accent)' }} /> Portofolio & Rekonsiliasi Binance
           </h2>
           <p style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
-            Saldo Multi-Aset Riil · BTC Treasury Vault · Riwayat Mutasi SAPI
+            Dompet Spot · Simple Earn (Fleksibel) · USD(M) Futures · BTC Treasury Vault
           </p>
         </div>
         <button
@@ -97,13 +96,16 @@ export default function PortfolioPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
         {/* Total Equity Card */}
         <div className="card card-lime p-3">
-          <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
-            Total Valuasi Portofolio (USD)
+          <div className="flex items-center justify-between">
+            <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+              Total Valuasi Portofolio (USD)
+            </span>
+            <span className="badge badge-lime" style={{ fontSize: 7.5 }}>{(system?.mode || 'live').toUpperCase()}</span>
           </div>
           <div style={{ fontSize: 22, fontFamily: 'var(--font-display)', fontWeight: 800, color: 'var(--accent)', marginTop: 2 }}>
             ${totalEquityUSD.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <div className="flex items-center gap-3 mt-1.5 mono" style={{ fontSize: 10 }}>
+          <div className="flex items-center gap-3 mt-1.5 mono" style={{ fontSize: 9.5 }}>
             <span style={{ color: unrealized >= 0 ? 'var(--bull)' : 'var(--bear)' }}>
               Unrealized: {unrealized >= 0 ? '+' : ''}{fmt(unrealized)}
             </span>
@@ -112,8 +114,9 @@ export default function PortfolioPage() {
             </span>
           </div>
           <div className="mt-2 pt-1.5 border-t border-border flex justify-between items-center mono" style={{ fontSize: 9.5 }}>
-            <span style={{ color: 'var(--text-muted)' }}>Kas USDT Bebas:</span>
-            <span style={{ fontWeight: 700, color: 'var(--bull)' }}>${freeUSDT.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+            <span style={{ color: 'var(--text-muted)' }}>Spot: ${spotUSD.toFixed(2)}</span>
+            <span style={{ color: '#00F0FF' }}>Earn: ${earnUSD.toFixed(2)}</span>
+            <span style={{ color: 'var(--warn)' }}>Futures: ${futuresUSD.toFixed(2)}</span>
           </div>
         </div>
 
@@ -123,17 +126,17 @@ export default function PortfolioPage() {
             <div style={{ fontSize: 9.5, color: '#00F0FF', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
               <Coins size={11} /> BTC Treasury Vault
             </div>
-            <span className="badge badge-cyan" style={{ fontSize: 7.5 }}>70% PROFIT</span>
+            <span className="badge badge-cyan" style={{ fontSize: 7.5 }}>70% ACCUMULATOR</span>
           </div>
           <div style={{ fontSize: 20, fontFamily: 'var(--font-display)', fontWeight: 800, color: '#00F0FF', marginTop: 3 }}>
-            {btcStack.toFixed(8)} BTC
+            {totalBtc.toFixed(8)} BTC
           </div>
-          <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginTop: 1 }}>
+          <div style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', marginTop: 1 }}>
             Valuasi: ${btcVaultValUSD.toFixed(2)} USDT (@${btcPrice.toLocaleString()})
           </div>
           <div className="mt-2 pt-1.5 border-t border-border flex justify-between items-center mono" style={{ fontSize: 9.5 }}>
-            <span style={{ color: 'var(--text-muted)' }}>Profit Diinvestasikan:</span>
-            <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>${btcInvestedUSD.toFixed(2)} USDT</span>
+            <span style={{ color: 'var(--text-muted)' }}>Spot: {btcSpot.toFixed(6)} BTC</span>
+            <span style={{ color: '#00F0FF' }}>Earn: {btcEarn.toFixed(6)} BTC</span>
           </div>
         </div>
 
@@ -155,8 +158,8 @@ export default function PortfolioPage() {
             </span>
           </div>
           <div className="mt-2 pt-1.5 border-t border-border flex justify-between items-center mono" style={{ fontSize: 9.5 }}>
-            <span style={{ color: 'var(--text-muted)' }}>Mode Aktif:</span>
-            <span className="badge badge-lime" style={{ fontSize: 8 }}>{(system?.mode || 'PAPER').toUpperCase()}</span>
+            <span style={{ color: 'var(--text-muted)' }}>Mode Operasi:</span>
+            <span className="badge badge-lime" style={{ fontSize: 8 }}>{(system?.mode || 'live').toUpperCase()}</span>
           </div>
         </div>
       </div>
@@ -164,11 +167,13 @@ export default function PortfolioPage() {
       {/* Navigation Sub-Tabs */}
       <div className="flex items-center gap-1 overflow-x-auto pb-1 border-b border-border">
         {[
-          { id: 'balances', label: `Saldo Aset (${assets.length})`, icon: Wallet },
+          { id: 'spot', label: `Dompet Spot (${spotAssets.length})`, icon: Wallet },
+          { id: 'earn', label: `Simple Earn / LD (${earnAssets.length})`, icon: Sparkles },
+          { id: 'futures', label: `Futures USD(M)`, icon: TrendingUp },
           { id: 'deposits', label: `Deposit SAPI (${deposits.length})`, icon: ArrowDownLeft },
           { id: 'withdrawals', label: `Penarikan SAPI (${withdrawals.length})`, icon: ArrowUpRight },
           { id: 'transfers', label: `Transfer Internal (${transfers.length})`, icon: ArrowRightLeft },
-          { id: 'allocations', label: `Alokasi & Drift`, icon: PieChart },
+          { id: 'allocations', label: `Alokasi 3-Bucket`, icon: PieChart },
         ].map(t => {
           const Icon = t.icon
           const active = activeTab === t.id
@@ -185,12 +190,12 @@ export default function PortfolioPage() {
         })}
       </div>
 
-      {/* TAB 1: Live Binance Balances */}
-      {activeTab === 'balances' && (
+      {/* TAB 1: Live Binance Spot Balances */}
+      {activeTab === 'spot' && (
         <div className="card p-3">
           <SectionHeader
-            title="Daftar Saldo Aset Binance"
-            subtitle="Kuantitas saldo bebas, saldo terkunci, dan estimasi nilai USD yang tersinkronisasi dari Binance API"
+            title="Saldo Dompet Spot Binance"
+            subtitle="Kuantitas saldo bebas, saldo dalam order, dan estimasi nilai USD real-time"
           />
           <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
@@ -206,14 +211,14 @@ export default function PortfolioPage() {
                 </tr>
               </thead>
               <tbody>
-                {assets.length === 0 ? (
+                {spotAssets.length === 0 ? (
                   <tr>
                     <td colSpan={7} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>
-                      Tidak ada aset terdaftar.
+                      Tidak ada aset Spot terdaftar.
                     </td>
                   </tr>
                 ) : (
-                  assets.map((a, i) => {
+                  spotAssets.map((a: any, i: number) => {
                     const weightPct = totalEquityUSD > 0 ? ((a.usd_value / totalEquityUSD) * 100).toFixed(1) : '0.0'
                     return (
                       <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 34 }}>
@@ -242,7 +247,81 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* TAB 2: Deposit History */}
+      {/* TAB 2: Simple Earn / Flexible LD Assets */}
+      {activeTab === 'earn' && (
+        <div className="card p-3">
+          <SectionHeader
+            title="Saldo Tabungan Fleksibel / Simple Earn (LD Assets)"
+            subtitle="Koin yang sedang didepositkan dalam produk Binance Simple Earn dengan imbal hasil harian"
+          />
+          <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--bg-border)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                  <th style={{ padding: '6px 4px' }}>Aset Earn</th>
+                  <th style={{ padding: '6px 4px' }}>Koin Dasar</th>
+                  <th style={{ padding: '6px 4px' }}>Jumlah Koin</th>
+                  <th style={{ padding: '6px 4px' }}>Harga Pasar</th>
+                  <th style={{ padding: '6px 4px' }}>Nilai Estimasi (USD)</th>
+                  <th style={{ padding: '6px 4px' }}>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {earnAssets.length === 0 ? (
+                  <tr>
+                    <td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>
+                      Tidak ada aset di Simple Earn.
+                    </td>
+                  </tr>
+                ) : (
+                  earnAssets.map((a: any, i: number) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 34 }}>
+                      <td style={{ padding: '6px 4px', fontWeight: 700, color: '#00F0FF' }}>{a.asset}</td>
+                      <td style={{ padding: '6px 4px', fontWeight: 600 }}>{a.underlying}</td>
+                      <td style={{ padding: '6px 4px' }}>{a.total >= 1 ? a.total.toLocaleString('en-US', { maximumFractionDigits: 4 }) : a.total.toFixed(8)}</td>
+                      <td style={{ padding: '6px 4px' }}>${fmtPrice(a.price)}</td>
+                      <td style={{ padding: '6px 4px', fontWeight: 700, color: 'var(--accent)' }}>${a.usd_value.toFixed(4)}</td>
+                      <td style={{ padding: '6px 4px' }}>
+                        <span className="badge badge-cyan" style={{ fontSize: 8 }}>FLEKSIBEL EARN</span>
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 3: Futures USD(M) Account */}
+      {activeTab === 'futures' && (
+        <div className="card p-3">
+          <SectionHeader
+            title="Akun Margin USD(M) Futures"
+            subtitle="Saldo margin, margin bebas, dan posisi hedging aktif"
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2">
+            <div className="p-2.5 rounded bg-deep border border-border">
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>TOTAL MARGIN BALANCE</div>
+              <div className="mono font-bold" style={{ fontSize: 16, color: 'var(--accent)', marginTop: 2 }}>${futuresUSD.toFixed(2)} USDT</div>
+            </div>
+            <div className="p-2.5 rounded bg-deep border border-border">
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>AVAILABLE BALANCE</div>
+              <div className="mono font-bold" style={{ fontSize: 16, color: 'var(--bull)', marginTop: 2 }}>
+                ${Number(wallet?.futures_account?.availableBalance || futuresUSD).toFixed(2)} USDT
+              </div>
+            </div>
+            <div className="p-2.5 rounded bg-deep border border-border">
+              <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>UNREALIZED PROFIT</div>
+              <div className="mono font-bold" style={{ fontSize: 16, marginTop: 2 }}>
+                ${Number(wallet?.futures_account?.totalUnrealizedProfit || 0).toFixed(2)} USDT
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* TAB 4: Deposit History */}
       {activeTab === 'deposits' && (
         <div className="card p-3">
           <SectionHeader
@@ -296,7 +375,7 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* TAB 3: Withdrawal History */}
+      {/* TAB 5: Withdrawal History */}
       {activeTab === 'withdrawals' && (
         <div className="card p-3">
           <SectionHeader
@@ -350,7 +429,7 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* TAB 4: Internal Transfers */}
+      {/* TAB 6: Internal Transfers */}
       {activeTab === 'transfers' && (
         <div className="card p-3">
           <SectionHeader
@@ -402,7 +481,7 @@ export default function PortfolioPage() {
         </div>
       )}
 
-      {/* TAB 5: Allocations & Drift */}
+      {/* TAB 7: Allocations & Drift */}
       {activeTab === 'allocations' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Donut Chart Card */}
@@ -422,7 +501,7 @@ export default function PortfolioPage() {
                       dataKey="value"
                       stroke="none"
                     >
-                      {pieData.map((entry, index) => (
+                      {pieData.map((entry: any, index: number) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
@@ -435,14 +514,14 @@ export default function PortfolioPage() {
               </div>
 
               <div style={{ flex: 1, minWidth: 120 }}>
-                {pieData.map((d, i) => (
+                {pieData.map((d: any, i: number) => (
                   <div key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 4, marginBottom: 3 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
                       <div style={{ width: 5, height: 5, borderRadius: 2, background: d.color, flexShrink: 0 }} />
                       <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>{d.name}</span>
                     </div>
                     <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', fontWeight: 600 }}>
-                      ${d.value.toLocaleString('en-US', { maximumFractionDigits: 0 })} ({((d.value / Math.max(totalEquityUSD, 1)) * 100).toFixed(1)}%)
+                      ${d.value.toLocaleString('en-US', { maximumFractionDigits: 2 })} ({((d.value / Math.max(totalEquityUSD, 0.01)) * 100).toFixed(1)}%)
                     </span>
                   </div>
                 ))}
@@ -457,7 +536,7 @@ export default function PortfolioPage() {
               <div>
                 <div className="flex justify-between items-center mb-1 mono" style={{ fontSize: 9.5 }}>
                   <span style={{ color: '#00F0FF', fontWeight: 700 }}>BTC Vault (Target 70% Spot)</span>
-                  <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.9 * 0.7).toFixed(2)}</span>
+                  <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.7).toFixed(2)}</span>
                 </div>
                 <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{ width: '70%', height: '100%', background: '#00F0FF' }} />
@@ -467,7 +546,7 @@ export default function PortfolioPage() {
               <div>
                 <div className="flex justify-between items-center mb-1 mono" style={{ fontSize: 9.5 }}>
                   <span style={{ color: 'var(--bull)' }}>Spot Altcoins (Target 30% Spot)</span>
-                  <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.9 * 0.3).toFixed(2)}</span>
+                  <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.3).toFixed(2)}</span>
                 </div>
                 <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{ width: '30%', height: '100%', background: 'var(--bull)' }} />
@@ -476,7 +555,7 @@ export default function PortfolioPage() {
 
               <div>
                 <div className="flex justify-between items-center mb-1 mono" style={{ fontSize: 9.5 }}>
-                  <span style={{ color: 'var(--warn)' }}>Futures Hedge (Target 10% Total)</span>
+                  <span style={{ color: 'var(--warn)' }}>Futures Hedge (Target 10% Plafon)</span>
                   <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.1).toFixed(2)}</span>
                 </div>
                 <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>

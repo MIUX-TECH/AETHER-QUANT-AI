@@ -45,6 +45,8 @@ export interface Risk {
 
 export interface WalletAsset {
   asset: string
+  underlying?: string
+  category?: 'spot' | 'earn' | 'futures'
   free: number
   locked: number
   total: number
@@ -55,10 +57,14 @@ export interface WalletAsset {
 export interface WalletState {
   mode: string
   total_equity_usd: number
+  spot_usd?: number
+  earn_usd?: number
+  futures_usd?: number
+  futures_account?: any
   assets: WalletAsset[]
 }
 
-interface AppStore {
+export interface AppStore {
   // Data
   system: SystemState
   portfolio: Portfolio
@@ -100,15 +106,21 @@ interface AppStore {
 }
 
 const defaultPortfolio: Portfolio = {
-  total_equity: 1000,
-  spot_equity: 900,
-  futures_equity: 100,
+  total_equity: 0,
+  spot_equity: 0,
+  futures_equity: 0,
   unrealized_pnl: 0,
   realized_pnl_today: 0,
-  peak_equity: 1000,
+  peak_equity: 0,
   drawdown_pct: 0,
-  available_cash: 50,
+  available_cash: 0,
   last_updated: null,
+  btc_vault: {
+    btc_stack: 0,
+    total_invested_usdt: 0,
+    average_cost_basis: 0,
+    last_buy_at: undefined
+  }
 }
 
 const defaultRisk: Risk = {
@@ -125,19 +137,16 @@ const defaultRisk: Risk = {
 }
 
 const defaultWallet: WalletState = {
-  mode: 'testnet',
-  total_equity_usd: 10000.0,
-  assets: [
-    { asset: 'USDT', free: 10000.0, locked: 0, total: 10000.0, price: 1.0, usd_value: 10000.0 },
-    { asset: 'BTC', free: 1.0, locked: 0, total: 1.0, price: 77000.0, usd_value: 77000.0 },
-    { asset: 'ETH', free: 1.0, locked: 0, total: 1.0, price: 2380.0, usd_value: 2380.0 },
-    { asset: 'BNB', free: 1.0, locked: 0, total: 1.0, price: 689.0, usd_value: 689.0 },
-    { asset: 'SOL', free: 6.0, locked: 0, total: 6.0, price: 99.0, usd_value: 594.0 },
-  ]
+  mode: 'live',
+  total_equity_usd: 0,
+  spot_usd: 0,
+  earn_usd: 0,
+  futures_usd: 0,
+  assets: []
 }
 
 export const useStore = create<AppStore>((set, get) => ({
-  system: { status: 'idle', mode: 'testnet', kill_switch: false, safe_mode: false, last_scan: null },
+  system: { status: 'idle', mode: 'live', kill_switch: false, safe_mode: false, last_scan: null },
   portfolio: defaultPortfolio,
   risk: defaultRisk,
   wallet: defaultWallet,

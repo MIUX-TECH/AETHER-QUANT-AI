@@ -22,7 +22,7 @@ export default function HistoryPage() {
 
   // Period filtering
   const now = Date.now()
-  const periodFiltered = rawTrades.filter(t => {
+  const periodFiltered = rawTrades.filter((t: any) => {
     if (period === 'ALL') return true
     const tTime = t.exit_time || t.entry_time || t.timestamp || 0
     const ageMs = now - (typeof tTime === 'number' ? tTime : new Date(tTime).getTime())
@@ -33,7 +33,7 @@ export default function HistoryPage() {
   })
 
   // Symbol & Type filtering
-  const filtered = periodFiltered.filter(t => {
+  const filtered = periodFiltered.filter((t: any) => {
     if (filterSymbol !== 'ALL' && t.symbol !== filterSymbol) return false
     if (filterType !== 'ALL') {
       const isWin = (t.realized_pnl || t.pnl || 0) > 0
@@ -45,13 +45,13 @@ export default function HistoryPage() {
 
   // Stats calculation
   const totalTrades = periodFiltered.length
-  const winningTrades = periodFiltered.filter(t => (t.realized_pnl || t.pnl || 0) > 0)
+  const winningTrades = periodFiltered.filter((t: any) => (t.realized_pnl || t.pnl || 0) > 0)
   const winRate = totalTrades > 0 ? (winningTrades.length / totalTrades) * 100 : 0
-  const totalPnl = periodFiltered.reduce((sum, t) => sum + Number(t.realized_pnl || t.pnl || 0), 0)
-  const totalFee = periodFiltered.reduce((sum, t) => sum + Number(t.fee || 0), 0)
-  const btcVaultProfitUsdt = winningTrades.reduce((sum, t) => sum + (Number(t.realized_pnl || 0) * 0.7), 0)
+  const totalPnl = periodFiltered.reduce((sum: number, t: any) => sum + Number(t.realized_pnl || t.pnl || 0), 0)
+  const totalFee = periodFiltered.reduce((sum: number, t: any) => sum + Number(t.fee || 0), 0)
+  const btcVaultProfitUsdt = winningTrades.reduce((sum: number, t: any) => sum + (Number(t.realized_pnl || 0) * 0.7), 0)
 
-  const symbols = ['ALL', ...Array.from(new Set(rawTrades.map(t => t.symbol).filter(Boolean)))]
+  const symbols: string[] = ['ALL', ...Array.from(new Set(rawTrades.map((t: any) => t.symbol).filter(Boolean))) as string[]]
 
   return (
     <div className="flex flex-col gap-3">

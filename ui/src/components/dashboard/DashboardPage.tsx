@@ -8,14 +8,15 @@ import {
 import {
   RefreshCw, Zap, TrendingUp, DollarSign, Activity,
   Brain, AlertTriangle, ChevronRight, Layers, ShieldCheck,
-  Coins, Sparkles, ArrowUpRight, Flame, ShieldAlert, Crosshair
+  Coins, Sparkles, ArrowUpRight, Flame, ShieldAlert, Crosshair,
+  Wallet, PieChart
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts'
 
 export default function DashboardPage() {
   const {
     portfolio, risk, system, scanResults, scanner, closedToday,
-    positions, wallet, refresh, triggerScan, loading, setActiveTab
+    positions, wallet, history, refresh, triggerScan, loading, setActiveTab
   } = useStore()
   const [chartRange, setChartRange] = useState<'1D' | '7D' | '30D' | 'ALL'>('1D')
 
@@ -27,17 +28,21 @@ export default function DashboardPage() {
     refresh()
   }, [])
 
-  const totalWalletVal = wallet?.total_equity_usd || wallet?.assets?.reduce((acc, a) => acc + (a.usd_value || (a.total * (a.price || 1))), 0) || 0
-  const equity = totalWalletVal > 0 ? totalWalletVal : Number(portfolio?.total_equity || 1000)
+  const totalWalletVal = Number(wallet?.total_equity_usd || portfolio?.total_equity || 0)
+  const spotVal = Number(wallet?.spot_usd || 0)
+  const earnVal = Number(wallet?.earn_usd || 0)
+  const futuresVal = Number(wallet?.futures_usd || 0)
   const unrealPnl = Number(portfolio?.unrealized_pnl || 0)
   const realPnl = Number(portfolio?.realized_pnl_today || 0)
   const drawdown = Number(portfolio?.drawdown_pct || 0) * 100
 
-  // BTC Vault calculations
-  const btcVault = portfolio?.btc_vault || {}
-  const btcStack = Number(btcVault.btc_stack || 0)
-  const btcPrice = Number(wallet?.assets?.find(a => a.asset === 'BTC')?.price || 81500)
-  const btcVaultValUSD = btcStack * btcPrice
+  // Real BTC stack from wallet
+  const btcSpot = wallet?.assets?.find((a: any) => a.asset === 'BTC')?.total || 0
+  const btcEarn = wallet?.assets?.find((a: any) => a.asset === 'LDBTC')?.total || 0
+  const btcVaultStack = Number(portfolio?.btc_vault?.btc_stack || 0)
+  const totalBtcStack = Math.max(btcVaultStack, btcSpot + btcEarn)
+  const btcPrice = Number(wallet?.assets?.find((a: any) => a.asset === 'BTC')?.price || 81500)
+  const btcValuationUSD = totalBtcStack * btcPrice
 
   // Top signals list
   const signals = Object.entries(scanResults || {}).map(([sym, r]: [string, any]) => ({
@@ -53,39 +58,15 @@ export default function DashboardPage() {
     ai_verdict: r?.score?.ai_verdict || 'APPROVE',
   })).filter(s => s.price > 0)
 
-  // Chart curve calculation based on range
-  const chartPoints = chartRange === '1D'
-    ? [
-        { time: '00:00', equity: equity * 0.995 },
-        { time: '04:00', equity: equity * 0.997 },
-        { time: '08:00', equity: equity * 0.996 },
-        { time: '12:00', equity: equity * 0.999 },
-        { time: '16:00', equity: equity * 0.998 },
-        { time: 'Sekarang', equity: equity },
-      ]
-    : chartRange === '7D'
-    ? [
-        { time: 'H-6', equity: equity * 0.97 },
-        { time: 'H-5', equity: equity * 0.978 },
-        { time: 'H-4', equity: equity * 0.985 },
-        { time: 'H-3', equity: equity * 0.982 },
-        { time: 'H-2', equity: equity * 0.991 },
-        { time: 'H-1', equity: equity * 0.996 },
-        { time: 'Sekarang', equity: equity },
-      ]
-    : [
-        { time: 'M-1', equity: equity * 0.92 },
-        { time: 'M-2', equity: equity * 0.945 },
-        { time: 'M-3', equity: equity * 0.97 },
-        { time: 'M-4', equity: equity * 0.988 },
-        { time: 'Sekarang', equity: equity },
-      ]
+  // Real Historical Equity Points from Trades & Current Valuation
+  const trades = history || []
+  const chartPoints = generateDynamicChartPoints(totalWalletVal, trades, chartRange)
 
   // Dynamic Qwen AI commentary
   const dominantRegime = scanner?.market_regime || 'ranging'
   const buySignalsCount = signals.filter(s => s.signal.includes('BUY')).length
   const aiCommentary = dominantRegime === 'trending_up'
-    ? `Pasar terdeteksi TRENDING UP. Model Qwen memvalidasi ${buySignalsCount} aset dengan momentum bullish. TP1 (40% BE+fee) dan 60% runner trailing stop 2.5% aktif mengejar trend.`
+    ? `Pasar terdeteksi TRENDING UP. Model Qwen memvalidasi ${buySignalsCount} aset dengan momentum bullish. TP1 (40% BE+fee 0.3%) dan 60% runner trailing stop 2.5% aktif mengejar trend.`
     : dominantRegime === 'trending_down'
     ? `Pasar terdeteksi TRENDING DOWN. Sistem mengaktifkan mode proteksi modal ketat dan akumulasi DCA BTC bertahap.`
     : `Kondisi pasar RANGING / SIDEWAYS. Algoritma mean-reversion aktif dengan target TP1 ketat dan trailing stop 1.2% untuk mengunci profit secepatnya.`
@@ -94,24 +75,34 @@ export default function DashboardPage() {
     <div className="flex flex-col gap-3">
       {/* 4 Core Stat Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
-        <StatCard
-          label="Total Valuasi Portofolio"
-          value={`$${equity.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
-          sub={`Unrealized: ${unrealPnl >= 0 ? '+' : ''}${fmt(unrealPnl)}`}
-          accent
-        />
-        <div className="card p-3" style={{ borderLeft: '3px solid #00F0FF', background: 'linear-gradient(135deg, rgba(0,240,255,0.04), var(--bg-card))' }}>
-          <div className="flex items-center justify-between" style={{ fontSize: 10, color: '#00F0FF', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
-            <span className="flex items-center gap-1"><Coins size={11} /> BTC VAULT STACK</span>
-            <span style={{ fontSize: 8 }}>70% PROFIT</span>
+        <div className="card card-lime p-3">
+          <div className="flex items-center justify-between" style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
+            <span>Total Valuasi Portofolio</span>
+            <span className="badge badge-lime" style={{ fontSize: 7.5 }}>{(system?.mode || 'live').toUpperCase()}</span>
           </div>
-          <div className="mono font-bold" style={{ fontSize: 16, color: '#00F0FF', marginTop: 3 }}>
-            {btcStack.toFixed(6)} BTC
+          <div className="mono font-bold" style={{ fontSize: 20, color: 'var(--accent)', marginTop: 3 }}>
+            ${totalWalletVal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </div>
-          <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>
-            Valuasi: ${btcVaultValUSD.toFixed(2)} USDT
+          <div className="flex items-center gap-2 mt-1.5 mono" style={{ fontSize: 9.5, color: 'var(--text-muted)' }}>
+            <span>Spot: ${spotVal.toFixed(2)}</span>
+            {earnVal > 0 && <span style={{ color: '#00F0FF' }}>· Earn: ${earnVal.toFixed(2)}</span>}
+            {futuresVal > 0 && <span>· Futures: ${futuresVal.toFixed(2)}</span>}
           </div>
         </div>
+
+        <div className="card p-3" style={{ borderLeft: '3px solid #00F0FF', background: 'linear-gradient(135deg, rgba(0,240,255,0.04), var(--bg-card))' }}>
+          <div className="flex items-center justify-between" style={{ fontSize: 9.5, color: '#00F0FF', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
+            <span className="flex items-center gap-1"><Coins size={11} /> BTC VAULT STACK</span>
+            <span style={{ fontSize: 7.5 }}>ACCUMULATOR</span>
+          </div>
+          <div className="mono font-bold" style={{ fontSize: 17, color: '#00F0FF', marginTop: 3 }}>
+            {totalBtcStack.toFixed(8)} BTC
+          </div>
+          <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 1 }}>
+            Valuasi: ${btcValuationUSD.toFixed(2)} USDT
+          </div>
+        </div>
+
         <StatCard
           label="Realisasi Profit Hari Ini"
           value={`${realPnl >= 0 ? '+' : ''}${fmt(realPnl)}`}
@@ -119,6 +110,7 @@ export default function DashboardPage() {
           bull={realPnl > 0}
           danger={realPnl < 0}
         />
+
         <StatCard
           label="Penurunan (Drawdown)"
           value={`${drawdown.toFixed(2)}%`}
@@ -131,7 +123,7 @@ export default function DashboardPage() {
       <div
         className="card p-3"
         style={{
-          background: 'linear-gradient(135deg, rgba(163,230,53,0.04), rgba(0,240,255,0.03), var(--bg-card))',
+          background: 'linear-gradient(135deg, rgba(163,230,53,0.03), rgba(0,240,255,0.02), var(--bg-card))',
           border: '1px solid var(--accent-glow)'
         }}
       >
@@ -162,7 +154,7 @@ export default function DashboardPage() {
         {/* Equity Curve Chart */}
         <div className="card p-3 lg:col-span-2">
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
-            <SectionHeader title="Kurva Pertumbuhan Ekuitas" subtitle="Monitoring pergerakan nilai portofolio" />
+            <SectionHeader title="Kurva Pertumbuhan Ekuitas" subtitle="Pergerakan nilai portofolio berdasarkan transaksi riil" />
             <div className="flex items-center gap-1 bg-deep p-0.5 rounded border border-border">
               {(['1D', '7D', '30D', 'ALL'] as const).map(range => (
                 <button
@@ -188,7 +180,7 @@ export default function DashboardPage() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={9} tickLine={false} />
-                <YAxis stroke="var(--text-muted)" fontSize={9} tickLine={false} domain={['auto', 'auto']} tickFormatter={v => `$${v.toFixed(0)}`} />
+                <YAxis stroke="var(--text-muted)" fontSize={9} tickLine={false} domain={['auto', 'auto']} tickFormatter={v => `$${v.toFixed(1)}`} />
                 <Tooltip
                   contentStyle={{ background: 'var(--bg-card2)', border: '1px solid var(--bg-border)', borderRadius: 6, fontSize: 10, fontFamily: 'var(--font-mono)' }}
                   formatter={(v: any) => [`$${Number(v).toFixed(2)}`, 'Ekuitas']}
@@ -206,8 +198,8 @@ export default function DashboardPage() {
             <div className="flex flex-col gap-2.5 mt-2.5">
               <div>
                 <div className="flex justify-between items-center mb-1" style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)' }}>
-                  <span style={{ color: '#00F0FF', fontWeight: 700 }}>BTC Vault (Target 70%)</span>
-                  <span style={{ fontWeight: 600 }}>${(equity * 0.9 * 0.7).toFixed(0)}</span>
+                  <span style={{ color: '#00F0FF', fontWeight: 700 }}>BTC Vault (Target 70% Spot)</span>
+                  <span style={{ fontWeight: 600 }}>${(totalWalletVal * 0.7).toFixed(2)}</span>
                 </div>
                 <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{ width: '70%', height: '100%', background: '#00F0FF' }} />
@@ -216,8 +208,8 @@ export default function DashboardPage() {
 
               <div>
                 <div className="flex justify-between items-center mb-1" style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)' }}>
-                  <span style={{ color: 'var(--bull)' }}>Spot Altcoins (Target 30%)</span>
-                  <span style={{ fontWeight: 600 }}>${(equity * 0.9 * 0.3).toFixed(0)}</span>
+                  <span style={{ color: 'var(--bull)' }}>Spot Altcoins (Target 30% Spot)</span>
+                  <span style={{ fontWeight: 600 }}>${(totalWalletVal * 0.3).toFixed(2)}</span>
                 </div>
                 <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{ width: '30%', height: '100%', background: 'var(--bull)' }} />
@@ -226,8 +218,8 @@ export default function DashboardPage() {
 
               <div>
                 <div className="flex justify-between items-center mb-1" style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)' }}>
-                  <span style={{ color: 'var(--warn)' }}>Futures Hedge (Target 10%)</span>
-                  <span style={{ fontWeight: 600 }}>${(equity * 0.1).toFixed(0)}</span>
+                  <span style={{ color: 'var(--warn)' }}>Futures Hedge (Target 10% Plafon)</span>
+                  <span style={{ fontWeight: 600 }}>${(totalWalletVal * 0.1).toFixed(2)}</span>
                 </div>
                 <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{ width: '10%', height: '100%', background: 'var(--warn)' }} />
@@ -237,7 +229,7 @@ export default function DashboardPage() {
           </div>
 
           <div className="mt-3 pt-2 border-t border-border flex justify-between items-center">
-            <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Rebalance Drift: 5%</span>
+            <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Deviasi Drift: 5.0%</span>
             <button className="btn btn-ghost btn-xs" onClick={() => setActiveTab('portfolio')} style={{ fontSize: 9.5 }}>
               Portofolio <ArrowUpRight size={9} />
             </button>
@@ -259,7 +251,7 @@ export default function DashboardPage() {
 
         {allPositions.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '14px 0', color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', fontSize: 10.5 }}>
-            Belum ada posisi terbuka saat ini.
+            Belum ada posisi terbuka saat ini. Bot memindai peluang setiap 60 detik.
           </div>
         ) : (
           <div className="table-wrapper" style={{ overflowX: 'auto' }}>
@@ -345,4 +337,32 @@ export default function DashboardPage() {
       </div>
     </div>
   )
+}
+
+function generateDynamicChartPoints(currentVal: number, trades: any[], range: string) {
+  if (currentVal <= 0) return [{ time: 'Sekarang', equity: 0 }]
+  
+  if (trades.length === 0) {
+    return [
+      { time: 'T-4', equity: currentVal },
+      { time: 'T-3', equity: currentVal },
+      { time: 'T-2', equity: currentVal },
+      { time: 'T-1', equity: currentVal },
+      { time: 'Sekarang', equity: currentVal },
+    ]
+  }
+
+  // Calculate back cumulative PnL from trades
+  const sorted = [...trades].sort((a, b) => (a.exit_time || 0) - (b.exit_time || 0))
+  let running = currentVal - sorted.reduce((sum, t) => sum + Number(t.realized_pnl || 0), 0)
+  
+  const points = [{ time: 'Awal', equity: Number(running.toFixed(2)) }]
+  sorted.forEach((t, i) => {
+    running += Number(t.realized_pnl || 0)
+    const timeStr = t.exit_time ? new Date(t.exit_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : `#${i+1}`
+    points.push({ time: timeStr, equity: Number(running.toFixed(2)) })
+  })
+  
+  points.push({ time: 'Sekarang', equity: Number(currentVal.toFixed(2)) })
+  return points
 }

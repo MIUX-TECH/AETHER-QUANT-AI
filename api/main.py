@@ -289,6 +289,16 @@ def get_portfolio():
     if not orchestrator:
         raise HTTPException(503)
     status = orchestrator.get_full_status()
+    # Pull dynamic wallet valuation
+    try:
+        w = get_wallet()
+        if w.get("total_equity_usd", 0) > 0:
+            status["portfolio"]["total_equity"] = w["total_equity_usd"]
+            status["portfolio"]["spot_equity"] = w.get("spot_usd", w["total_equity_usd"])
+            status["portfolio"]["futures_equity"] = w.get("futures_usd", 0.0)
+    except Exception:
+        pass
+
     return {
         "portfolio": status["portfolio"],
         "positions": status["positions"],
@@ -313,55 +323,95 @@ def get_wallet():
     except Exception:
         pass
     
+    # Fetch real-time market prices for accurate valuation
+    price_map = {}
+    try:
+        r = requests.get("https://api.binance.com/api/v3/ticker/price", timeout=3)
+        if r.status_code == 200:
+            price_map = {p["symbol"]: float(p["price"]) for p in r.json() if "USDT" in p["symbol"]}
+    except Exception:
+        pass
+
     scan_res = getattr(orchestrator, "_scan_results", {}) or {}
     items = []
+    spot_usd = 0.0
+    earn_usd = 0.0
     total_usd = 0.0
-    
+
     PRIMARY_ASSETS = ["USDT", "USD", "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "PEPE", "SHIB", "NEAR", "AVAX", "TRX", "BONK", "FLOKI"]
 
     for asset, b in balances.items():
         free = float(b.get("free", 0))
         locked = float(b.get("locked", 0))
         total = float(b.get("total", free + locked))
-        if total <= 0.00001:
+        if total <= 0.00000001:
             continue
 
-        # Skip obscure non-crypto testnet tokens unless they are primary
-        if asset not in PRIMARY_ASSETS and total > 1000 and not asset.endswith("USDT"):
-            if not any(asset.startswith(p) for p in ["USDT", "USD", "BTC", "ETH", "SOL", "BNB"]):
-                continue
+        # Check if Simple Earn (Flexible LD asset)
+        is_earn = asset.startswith("LD") and len(asset) > 2
+        underlying = asset[2:] if is_earn else asset
 
         price = 1.0
-        if asset in ["USDT", "USD", "USDC", "FDUSD", "BUSD"]:
+        if underlying in ["USDT", "USD", "USDC", "FDUSD", "BUSD"]:
             price = 1.0
         else:
-            sym = f"{asset}USDT"
-            if sym in scan_res and scan_res[sym].get("price", 0) > 0:
+            sym = f"{underlying}USDT"
+            if sym in price_map:
+                price = price_map[sym]
+            elif sym in scan_res and scan_res[sym].get("price", 0) > 0:
                 price = float(scan_res[sym]["price"])
             else:
-                try:
-                    r = requests.get(f"https://data-api.binance.vision/api/v3/ticker/price?symbol={sym}", timeout=2)
-                    if r.status_code == 200:
-                        price = float(r.json().get("price", 0))
-                except Exception:
-                    price = 0.0
+                price = 0.0
 
         usd_val = total * price if price > 0 else 0
+        if is_earn:
+            earn_usd += usd_val
+        else:
+            spot_usd += usd_val
         total_usd += usd_val
+
         items.append({
             "asset": asset,
-            "free": round(free, 6) if free < 1 else round(free, 4),
+            "underlying": underlying,
+            "category": "earn" if is_earn else "spot",
+            "free": round(free, 8) if free < 1 else round(free, 4),
             "locked": round(locked, 4),
-            "total": round(total, 6) if total < 1 else round(total, 4),
+            "total": round(total, 8) if total < 1 else round(total, 4),
             "price": price,
-            "usd_value": round(usd_val, 2)
+            "usd_value": round(usd_val, 4)
         })
 
-    # Sort primary assets first, then by USD value
-    items.sort(key=lambda x: (x["asset"] not in PRIMARY_ASSETS, -x["usd_value"]))
+    # USD-M Futures Margin Balance Probe
+    futures_data = {}
+    futures_usd = 0.0
+    try:
+        if hasattr(orchestrator.executor, "get_futures_account"):
+            futures_data = orchestrator.executor.get_futures_account()
+            futures_usd = float(futures_data.get("totalMarginBalance", 0.0))
+            total_usd += futures_usd
+    except Exception:
+        pass
+
+    # Sort primary & valuable assets first
+    items.sort(key=lambda x: (x["category"] == "earn", x["underlying"] not in PRIMARY_ASSETS, -x["usd_value"]))
+
+    final_total = round(total_usd, 2) if total_usd > 0 else (1000.0 if orchestrator.executor.mode == "paper" else 0.0)
+
+    # Update orchestrator state memory
+    try:
+        orchestrator.portfolio_manager.state["portfolio"]["total_equity"] = final_total
+        orchestrator.portfolio_manager.state["portfolio"]["spot_equity"] = round(spot_usd + earn_usd, 2)
+        orchestrator.portfolio_manager.state["portfolio"]["futures_equity"] = round(futures_usd, 2)
+    except Exception:
+        pass
+
     return {
-        "mode": state.get("system", {}).get("mode", "paper"),
-        "total_equity_usd": round(total_usd, 2) if total_usd > 0 else 1000.0,
+        "mode": orchestrator.executor.mode,
+        "total_equity_usd": final_total,
+        "spot_usd": round(spot_usd, 2),
+        "earn_usd": round(earn_usd, 2),
+        "futures_usd": round(futures_usd, 2),
+        "futures_account": futures_data,
         "assets": items
     }
 

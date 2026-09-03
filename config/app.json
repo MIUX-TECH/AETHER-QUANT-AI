@@ -1,23 +1,23 @@
 {
   "app": {
     "name": "AETHER-QUANT-AI",
-    "version": "1.0.0",
-    "mode": "testnet",
+    "version": "4.0.0",
+    "mode": "live",
     "api_port": 8000,
     "ui_port": 5173,
     "log_level": "INFO",
     "timezone": "UTC"
   },
   "binance": {
-    "testnet": true,
-    "base_url": "https://testnet.binance.vision",
-    "futures_base_url": "https://testnet.binancefuture.com",
+    "testnet": false,
+    "base_url": "https://api.binance.com",
+    "futures_base_url": "https://fapi.binance.com",
     "recv_window": 60000,
     "max_retries": 3,
     "retry_delay": 2
   },
   "scanner": {
-    "default_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"],
+    "default_symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT", "BNBUSDT", "XRPUSDT", "PEPEUSDT", "DOGEUSDT", "SHIBUSDT", "NEARUSDT", "AVAXUSDT", "TRXUSDT"],
     "scan_interval_seconds": 60,
     "timeframes": ["5m", "15m", "1h", "4h", "1d"],
     "lookback_candles": 200
