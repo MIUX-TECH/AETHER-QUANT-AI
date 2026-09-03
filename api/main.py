@@ -336,12 +336,9 @@ def get_wallet():
     # Fetch real-time market prices for accurate valuation
     price_map = {}
     try:
-        if hasattr(orchestrator, "market_data") and hasattr(orchestrator.market_data, "get_all_prices"):
-            price_map = orchestrator.market_data.get_all_prices()
-        if not price_map:
-            r = requests.get("https://api.binance.com/api/v3/ticker/price", timeout=8)
-            if r.status_code == 200:
-                price_map = {p["symbol"]: float(p["price"]) for p in r.json() if "USDT" in p["symbol"]}
+        r = requests.get("https://api.binance.com/api/v3/ticker/price", timeout=8)
+        if r.status_code == 200:
+            price_map = {p["symbol"]: float(p["price"]) for p in r.json() if "USDT" in p.get("symbol", "")}
     except Exception:
         pass
 
