@@ -1,14 +1,22 @@
 const getBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('API_URL')
-    if (saved) return saved.replace(/\/$/, '')
+    if (saved && saved !== '/api') return saved.replace(/\/$/, '')
   }
-  return (import.meta as any).env?.VITE_API_BASE_URL || '/api'
+  return (import.meta as any).env?.VITE_API_BASE_URL || ''
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
   const base = getBaseUrl()
-  const url = base.startsWith('http') ? `${base}/api${path}` : `${base}${path}`
+  const cleanPath = path.startsWith('/') ? path : `/${path}`
+  let url = ''
+  if (base.startsWith('http')) {
+    const apiPrefix = base.endsWith('/api') ? '' : '/api'
+    url = `${base}${apiPrefix}${cleanPath}`
+  } else {
+    url = cleanPath.startsWith('/api') ? cleanPath : `/api${cleanPath}`
+  }
+
   const res = await fetch(url, {
     headers: { 'Content-Type': 'application/json' },
     ...options,
