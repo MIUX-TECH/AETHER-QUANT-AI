@@ -391,7 +391,7 @@ class BinanceExecutor:
         """Fetch USD-M Futures account balances and margin."""
         if self.mode == "paper":
             return {"totalMarginBalance": "0.0", "availableBalance": "0.0", "positions": []}
-        status, data = self._send_signed("GET", f"{self.futures_url}/fapi/v2/account", futures=True)
+        status, data = self._send_signed("GET", f"{self.futures_url}/fapi/v2/account")
         return data if status == 200 and isinstance(data, dict) else {}
 
     def get_my_trades(self, symbol: str = "BTCUSDT", limit: int = 50) -> List[Dict]:
