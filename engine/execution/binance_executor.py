@@ -221,9 +221,37 @@ class BinanceExecutor:
         endpoint = "/fapi/v1/order" if futures else "/api/v3/order"
         return self._signed_delete(f"{base}{endpoint}", params)
 
+    def place_spot_oco_order(self, symbol: str, qty: float, tp_price: float,
+                             sl_stop_price: float, sl_limit_price: float = None) -> Dict:
+        """
+        Place official Binance Spot OCO Order (One-Cancels-the-Other):
+        - Limits Take Profit at tp_price
+        - Stops Loss at sl_stop_price with limit execution at sl_limit_price
+        """
+        if self.mode == "paper":
+            return {
+                "orderListId": f"PAPER_OCO_{uuid.uuid4().hex[:8].upper()}",
+                "symbol": symbol,
+                "status": "EXECUTING",
+                "mode": "paper"
+            }
+        
+        sl_limit = sl_limit_price or round(sl_stop_price * 0.995, 2)
+        params = {
+            "symbol": symbol,
+            "side": "SELL",
+            "quantity": qty,
+            "price": tp_price,
+            "stopPrice": sl_stop_price,
+            "stopLimitPrice": sl_limit,
+            "stopLimitTimeInForce": "GTC"
+        }
+        return self._signed_post(f"{self.base_url}/api/v3/order/oco", params)
+
     def _sign(self, params: dict) -> str:
         params.setdefault("recvWindow", 60000)
-        query = "&".join(f"{k}={v}" for k, v in sorted(params.items()))
+        params["timestamp"] = int(time.time() * 1000)
+        query = "&".join(f"{k}={v}" for k, v in sorted(params.items()) if k != "signature")
         return hmac.new(self.secret_key.encode(), query.encode(), hashlib.sha256).hexdigest()
 
     def _signed_post(self, url: str, params: dict, futures: bool = False) -> Dict:
@@ -235,7 +263,6 @@ class BinanceExecutor:
                     return r.json()
                 error = r.json()
                 code = error.get("code", 0)
-                # Don't retry on these codes
                 if code in [-1121, -1100, -2010, -1013]:
                     logger.error(f"Order rejected: {error}")
                     return {"error": error, "status": "REJECTED"}
