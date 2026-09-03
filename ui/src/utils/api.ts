@@ -1,9 +1,9 @@
 const getBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const saved = localStorage.getItem('API_URL')
-    if (saved && saved !== '/api') return saved.replace(/\/$/, '')
+    if (saved && saved !== '/api' && !saved.includes('localhost')) return saved.replace(/\/$/, '')
   }
-  return (import.meta as any).env?.VITE_API_BASE_URL || ''
+  return (import.meta as any).env?.VITE_API_BASE_URL || 'https://aether-quant-api-sg.onrender.com'
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {
