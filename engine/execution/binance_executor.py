@@ -362,10 +362,10 @@ class BinanceExecutor:
         import re
         CLUSTER_HOSTS = ["api.binance.com", "api1.binance.com", "api2.binance.com", "api3.binance.com", "api4.binance.com"]
         last_err = None
-        for attempt in range(self.max_retries):
-            # Failover cluster endpoint on retry
+        for attempt in range(len(CLUSTER_HOSTS)):
+            # Rotate cluster endpoint on each attempt
             cur_url = full_url
-            if attempt > 0 and not self.testnet:
+            if not self.testnet:
                 alt_host = CLUSTER_HOSTS[attempt % len(CLUSTER_HOSTS)]
                 cur_url = re.sub(r"https://(api\d*|data-api)\.binance\.(com|vision)", f"https://{alt_host}", full_url)
 
@@ -388,15 +388,9 @@ class BinanceExecutor:
                     return 200, data
 
                 if r.status_code in [418, 429]:
-                    ban_until = time.time() + 180
-                    if isinstance(data, dict) and "msg" in data:
-                        import re as rematch
-                        m = rematch.search(r"banned until (\d+)", data["msg"])
-                        if m:
-                            ban_until = int(m.group(1)) / 1000.0
-                    self.cooldown_until = ban_until
-                    logger.error(f"🚨 Binance Signed Request HTTP {r.status_code}: IP in cooldown until {datetime.utcfromtimestamp(self.cooldown_until).isoformat()}")
-                    return r.status_code, data
+                    logger.warning(f"Host {cur_url} returned {r.status_code}. Failover to next cluster endpoint...")
+                    last_err = {"http_status": r.status_code, "body": data}
+                    continue
 
                 last_err = {"http_status": r.status_code, "body": data}
                 code = data.get("code", 0) if isinstance(data, dict) else 0
@@ -409,8 +403,11 @@ class BinanceExecutor:
                 last_err = {"exception": str(e), "type": type(e).__name__}
                 logger.error(f"{method} {cur_url} attempt {attempt+1} exception: {e}")
 
-            if attempt < self.max_retries - 1:
-                time.sleep(self.retry_delay * (attempt + 1))
+        # If ALL cluster hosts failed with 418/429, enter cooldown
+        if last_err and last_err.get("http_status") in [418, 429]:
+            self.cooldown_until = time.time() + 180
+            logger.error("🚨 All Binance cluster endpoints rate limited. Entering 180s cooldown.")
+            return last_err.get("http_status"), last_err.get("body", {})
 
         return 500, {"error": "Max retries exceeded", "last_error": last_err}
 
