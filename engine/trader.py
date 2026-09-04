@@ -578,15 +578,23 @@ class TradingOrchestrator:
             
             # If position already exists, update live valuation & PnL
             if sym in spot_dict:
-                entry_p = spot_dict[sym].get("entry_price", curr_price)
+                entry_p = float(spot_dict[sym].get("entry_price") or curr_price)
                 pnl_pct = ((curr_price - entry_p) / entry_p) * 100 if entry_p > 0 else 0
                 pnl_usd = (curr_price - entry_p) * tot_qty
+                spot_dict[sym]["symbol"] = sym
+                spot_dict[sym]["side"] = spot_dict[sym].get("side", "BUY")
+                spot_dict[sym]["trade_type"] = "spot"
+                spot_dict[sym]["qty"] = tot_qty
+                spot_dict[sym]["entry_price"] = round(entry_p, 4)
                 spot_dict[sym]["current_price"] = round(curr_price, 4)
                 spot_dict[sym]["position_usdt"] = round(val_usd, 2)
                 spot_dict[sym]["unrealized_pnl"] = round(pnl_usd, 4)
                 spot_dict[sym]["unrealized_pnl_pct"] = round(pnl_pct, 2)
+                spot_dict[sym].setdefault("sl_price", round(entry_p * 0.98, 4))
+                spot_dict[sym].setdefault("tp_price", round(entry_p * 1.035, 4))
                 trail = spot_dict[sym].get("trailing_stop_pct", 0.025)
                 spot_dict[sym]["trailing_stop_price"] = round(curr_price * (1 - trail), 4)
+                spot_dict[sym].setdefault("status", "active")
                 continue
 
             # Only track meaningful positions (> $1.00)
