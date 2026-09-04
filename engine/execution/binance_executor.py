@@ -296,15 +296,22 @@ class BinanceExecutor:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         }
 
+        CLUSTER_HOSTS = ["api.binance.com", "api1.binance.com", "api2.binance.com", "api3.binance.com"]
         last_err = None
         for attempt in range(self.max_retries):
+            # Failover cluster endpoint on retry
+            cur_url = full_url
+            if attempt > 0 and not self.testnet and "api.binance.com" in full_url:
+                alt_host = CLUSTER_HOSTS[attempt % len(CLUSTER_HOSTS)]
+                cur_url = full_url.replace("api.binance.com", alt_host)
+
             try:
                 if method.upper() == "GET":
-                    r = self.session.get(full_url, headers=headers, timeout=10)
+                    r = self.session.get(cur_url, headers=headers, timeout=10)
                 elif method.upper() == "POST":
-                    r = self.session.post(full_url, headers=headers, timeout=10)
+                    r = self.session.post(cur_url, headers=headers, timeout=10)
                 elif method.upper() == "DELETE":
-                    r = self.session.delete(full_url, headers=headers, timeout=10)
+                    r = self.session.delete(cur_url, headers=headers, timeout=10)
                 else:
                     raise ValueError(f"Unsupported HTTP method: {method}")
 
@@ -322,10 +329,10 @@ class BinanceExecutor:
                     logger.error(f"Order rejected ({code}): {data}")
                     return r.status_code, data
 
-                logger.warning(f"{method} {url} attempt {attempt+1} failed ({r.status_code}): {data}")
+                logger.warning(f"{method} {cur_url} attempt {attempt+1} failed ({r.status_code}): {data}")
             except Exception as e:
                 last_err = {"exception": str(e), "type": type(e).__name__}
-                logger.error(f"{method} {url} attempt {attempt+1} exception: {e}")
+                logger.error(f"{method} {cur_url} attempt {attempt+1} exception: {e}")
 
             if attempt < self.max_retries - 1:
                 time.sleep(self.retry_delay * (attempt + 1))
