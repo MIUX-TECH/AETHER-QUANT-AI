@@ -35,6 +35,8 @@
     "log_rotation_days": 30,
     "backup_enabled": true,
     "backup_interval": 3600,
-    "max_backup_files": 24
+    "max_backup_files": 24,
+    "upstash_rest_url": "https://neutral-osprey-133586.upstash.io",
+    "upstash_rest_token": "gQAAAAAAAgnSAAIgcDE1Y2VkNThiOTYxYWE0MTJlYmU0M2UwMzZiOWJjYTg3NQ"
   }
 }
