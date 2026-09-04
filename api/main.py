@@ -292,6 +292,19 @@ def health_check():
         "scheduler_running": scheduler.is_running if scheduler else False,
     }
 
+@app.post("/api/admin/reset-cooldown")
+def reset_cooldown(verified: bool = Depends(verify_master_token)):
+    if orchestrator and hasattr(orchestrator, "executor"):
+        orchestrator.executor.cooldown_until = 0.0
+        orchestrator.executor._balance_cache = None
+        orchestrator.executor._futures_cache = None
+    if orchestrator and hasattr(orchestrator, "market_data"):
+        orchestrator.market_data.cooldown_until = 0.0
+    global _status_cache_data, _status_cache_time, _wallet_cache_data, _wallet_cache_time
+    _status_cache_data = None
+    _wallet_cache_data = None
+    return {"status": "cooldown_reset", "timestamp": datetime.utcnow().isoformat()}
+
 @app.get("/api/debug/binance")
 def debug_binance(verified: bool = Depends(verify_master_token)):
     if not orchestrator or not hasattr(orchestrator, "executor"):
@@ -299,6 +312,7 @@ def debug_binance(verified: bool = Depends(verify_master_token)):
     ex = orchestrator.executor
     status, data = ex._send_signed("GET", f"{ex.base_url}/api/v3/account")
     balances = [b for b in data.get("balances", []) if float(b.get("free", 0)) + float(b.get("locked", 0)) > 0] if isinstance(data, dict) else []
+    now = time.time()
     return {
         "mode": ex.mode,
         "testnet": ex.testnet,
@@ -307,6 +321,7 @@ def debug_binance(verified: bool = Depends(verify_master_token)):
         "api_key_masked": f"{ex.api_key[:6]}...{ex.api_key[-4:]}" if ex.api_key else "EMPTY",
         "secret_key_len": len(ex.secret_key),
         "time_offset": ex.time_offset,
+        "cooldown_remaining_sec": max(0, int(ex.cooldown_until - now)),
         "http_status": status,
         "raw_response": data if not isinstance(data, dict) or "balances" not in data else f"Found {len(balances)} non-zero balances",
         "non_zero_balances": balances[:10]
