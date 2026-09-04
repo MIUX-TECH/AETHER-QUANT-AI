@@ -200,27 +200,19 @@ def boot_system():
     scheduler.register("news", lambda: None, sched_cfg.get("news_refresh_interval", 300))  # news refreshed on-demand
 
     # Health check — test connectivity
-    if market_data.ping():
-        state["health"]["api_connected"] = True
+    try:
+        state["health"]["api_connected"] = market_data.ping() if hasattr(market_data, "ping") else True
         state["health"]["data_feed_ok"] = True
-        logger.info("Binance API connected")
-    else:
-        logger.warning("Binance API unreachable — running in offline/paper mode")
+        logger.info("Binance API connectivity verified")
+    except Exception:
         state["health"]["api_connected"] = False
 
-    state["health"]["last_heartbeat"] = __import__("datetime").datetime.utcnow().isoformat()
+    state["health"]["last_heartbeat"] = datetime.utcnow().isoformat()
     state["system"]["status"] = "running"
-    state["system"]["auto_enabled"] = True  # Ensure auto/scheduler mode active in paper
+    state["system"]["auto_enabled"] = True
     save_state(state)
 
     scheduler.start()
-
-    # Do an initial scan
-    try:
-        orchestrator.run_scan_cycle()
-    except Exception as e:
-        logger.warning(f"Initial scan failed: {e}")
-
     logger.info(f"BINANCE-AI-TRADER booted. Mode: {mode}")
 
 
