@@ -34,6 +34,16 @@ TIMEFRAME_SECONDS = {
 }
 
 
+TIMEFRAME_CACHE_TTL = {
+    "1d": 14400,  # 4 hours
+    "4h": 7200,   # 2 hours
+    "1h": 1800,   # 30 minutes
+    "15m": 300,   # 5 minutes
+    "5m": 60,     # 1 minute
+    "1m": 20      # 20 seconds
+}
+
+
 class MarketDataService:
     """
     Fetches market data from Binance REST API.
@@ -46,27 +56,56 @@ class MarketDataService:
         self.secret_key = secret_key
         self.testnet = testnet
         self.mode = mode
-        self.base_url = BINANCE_TESTNET if testnet else BINANCE_BASE
+        self.base_url = BINANCE_TESTNET if testnet else "https://api1.binance.com"
         self.futures_url = FUTURES_TESTNET if testnet else FUTURES_BASE
         self.session = requests.Session()
         self.session.headers.update({
             "X-MBX-APIKEY": api_key,
-            "Content-Type": "application/json"
+            "Content-Type": "application/json",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         })
         self._cache: Dict[str, Tuple[float, any]] = {}
         self._cache_ttl = 10  # seconds
+        self.used_weight = 0
+        self.cooldown_until = 0.0
 
     def _get(self, url: str, params: dict = None, timeout: int = 10) -> Optional[dict]:
+        now = time.time()
+        if now < self.cooldown_until:
+            logger.warning(f"MarketData in rate-limit cooldown for next {int(self.cooldown_until - now)}s. Skipping remote call.")
+            return None
+
         try:
             r = self.session.get(url, params=params, timeout=timeout)
+            
+            # Track Binance Used Weight Header
+            weight = r.headers.get("X-MBX-USED-WEIGHT-1M")
+            if weight:
+                try:
+                    self.used_weight = int(weight)
+                    if self.used_weight > 1000:
+                        logger.warning(f"⚠️ Binance API Weight high ({self.used_weight}/1200). Throttling 15s.")
+                        self.cooldown_until = now + 15
+                except Exception:
+                    pass
+
+            if r.status_code in [418, 429]:
+                logger.error(f"🚨 Binance Rate Limit Triggered (HTTP {r.status_code}): Entering 180s Cooldown.")
+                self.cooldown_until = now + 180
+                return None
+
             r.raise_for_status()
             return r.json()
         except Exception as e:
-            logger.warning(f"Primary endpoint {url} failed ({e}). Trying data-api.binance.vision fallback...")
+            logger.warning(f"Primary endpoint {url} failed ({e}). Trying fallback...")
             return self._get_public_fallback(url, params, timeout)
 
     def _get_public_fallback(self, url: str, params: dict, timeout: int) -> Optional[dict]:
-        """Fallback to data-api.binance.vision and alternative public Binance endpoints."""
+        """Fallback to alternative public Binance endpoints."""
+        now = time.time()
+        if now < self.cooldown_until:
+            return None
+
         endpoints = [
             "https://data-api.binance.vision",
             "https://api1.binance.com",
@@ -78,7 +117,10 @@ class MarketDataService:
         for base in endpoints:
             try:
                 fallback_url = f"{base}{path}"
-                r = requests.get(fallback_url, params=params, timeout=timeout)
+                r = requests.get(fallback_url, params=params, timeout=timeout, headers={"User-Agent": "Mozilla/5.0"})
+                if r.status_code in [418, 429]:
+                    self.cooldown_until = now + 180
+                    return None
                 if r.status_code == 200:
                     return r.json()
             except Exception:
@@ -96,18 +138,21 @@ class MarketDataService:
         val = fetch_fn()
         if val is not None:
             self._cache[key] = (now, val)
+        elif key in self._cache:
+            # Stale cache fallback if remote call failed/cooldown
+            return self._cache[key][1]
         return val
 
     def get_ticker(self, symbol: str) -> Optional[Dict]:
-        """Get 24h ticker stats."""
+        """Get 24h ticker stats with 30s cache."""
         cache_key = f"ticker_{symbol}"
         def fetch():
             url = f"{self.base_url}/api/v3/ticker/24hr"
             return self._get(url, {"symbol": symbol})
-        return self._cached(cache_key, fetch, ttl=15)
+        return self._cached(cache_key, fetch, ttl=30)
 
     def get_price(self, symbol: str) -> Optional[float]:
-        """Get current price."""
+        """Get current price with 5s cache."""
         cache_key = f"price_{symbol}"
         def fetch():
             url = f"{self.base_url}/api/v3/ticker/price"
@@ -118,7 +163,7 @@ class MarketDataService:
         return self._cached(cache_key, fetch, ttl=5)
 
     def get_all_prices(self) -> Dict[str, float]:
-        """Fetch all current market prices with caching."""
+        """Fetch all current market prices with 10s caching."""
         cache_key = "all_ticker_prices"
         def fetch():
             url = f"{self.base_url}/api/v3/ticker/price"
@@ -130,11 +175,10 @@ class MarketDataService:
 
     def get_klines(self, symbol: str, interval: str, limit: int = 200) -> Optional[List[Dict]]:
         """
-        Fetch OHLCV candlestick data.
-        Returns list of dicts: {open_time, open, high, low, close, volume, close_time, ...}
+        Fetch OHLCV candlestick data with tiered TTL per timeframe.
         """
         cache_key = f"klines_{symbol}_{interval}_{limit}"
-        ttl = min(TIMEFRAME_SECONDS.get(interval, 60), 30)
+        ttl = TIMEFRAME_CACHE_TTL.get(interval, 60)
         def fetch():
             url = f"{self.base_url}/api/v3/klines"
             raw = self._get(url, {"symbol": symbol, "interval": interval, "limit": limit})

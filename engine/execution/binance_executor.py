@@ -42,6 +42,14 @@ class BinanceExecutor:
         self.max_retries = 3
         self.retry_delay = 2
         self.time_offset = 0
+        self._balance_cache = None
+        self._balance_cache_time = 0.0
+        self._futures_cache = None
+        self._futures_cache_time = 0.0
+        self._exchange_info = None
+        self._exchange_info_time = 0.0
+        self._symbol_rules = {}
+        self._cache_ttl = 6.0  # seconds
         self._sync_time()
 
     def _sync_time(self):
@@ -56,6 +64,44 @@ class BinanceExecutor:
                 logger.info(f"Binance time synced. Offset: {self.time_offset}ms")
         except Exception as e:
             logger.warning(f"Binance time sync failed: {e}")
+
+    def get_symbol_rules(self, symbol: str) -> Dict:
+        """Fetch and cache LOT_SIZE, MIN_NOTIONAL and PRICE_FILTER for symbol."""
+        now = time.time()
+        if not self._exchange_info or (now - self._exchange_info_time) > 14400:
+            try:
+                r = requests.get(f"{self.base_url}/api/v3/exchangeInfo", timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                if r.status_code == 200:
+                    data = r.json()
+                    self._exchange_info = data
+                    self._exchange_info_time = now
+                    for s in data.get("symbols", []):
+                        sym = s.get("symbol")
+                        rules = {
+                            "stepSize": "0.0001",
+                            "minQty": "0.0001",
+                            "minNotional": 5.0,
+                            "tickSize": "0.01",
+                            "status": s.get("status", "TRADING")
+                        }
+                        for f in s.get("filters", []):
+                            if f.get("filterType") == "LOT_SIZE":
+                                rules["stepSize"] = f.get("stepSize", "0.0001")
+                                rules["minQty"] = f.get("minQty", "0.0001")
+                            elif f.get("filterType") in ["MIN_NOTIONAL", "NOTIONAL"]:
+                                rules["minNotional"] = float(f.get("minNotional", f.get("notional", 5.0)))
+                            elif f.get("filterType") == "PRICE_FILTER":
+                                rules["tickSize"] = f.get("tickSize", "0.01")
+                        self._symbol_rules[sym] = rules
+            except Exception as e:
+                logger.warning(f"Failed to fetch exchangeInfo: {e}")
+
+        return self._symbol_rules.get(symbol, {
+            "stepSize": "0.0001",
+            "minQty": "0.0001",
+            "minNotional": 5.0,
+            "tickSize": "0.01"
+        })
 
     # ============================================================
     # SPOT ORDERS
@@ -176,26 +222,33 @@ class BinanceExecutor:
     # ============================================================
 
     def _format_qty(self, symbol: str, qty: float) -> str:
-        """Format quantity string according to Binance precision rules."""
-        if "BTC" in symbol:
-            return f"{qty:.5f}"
-        elif "ETH" in symbol:
+        """Format quantity string accurately according to Binance LOT_SIZE stepSize rules."""
+        rules = self.get_symbol_rules(symbol)
+        step_size_str = rules.get("stepSize", "0.0001")
+        try:
+            from decimal import Decimal, ROUND_DOWN
+            step = Decimal(str(step_size_str))
+            d_qty = Decimal(str(qty))
+            formatted = d_qty.quantize(step, rounding=ROUND_DOWN)
+            if step >= 1:
+                return str(int(formatted))
+            res = f"{formatted:f}".rstrip('0').rstrip('.') if '.' in f"{formatted:f}" else str(formatted)
+            return res if res else "0"
+        except Exception:
+            if "BTC" in symbol: return f"{qty:.5f}"
+            if "ETH" in symbol: return f"{qty:.4f}"
+            if any(c in symbol for c in ["PEPE", "SHIB", "BONK", "FLOKI"]): return f"{int(qty)}"
             return f"{qty:.4f}"
-        elif any(c in symbol for c in ["SOL", "BNB", "AVAX", "LINK", "DOT", "NEAR"]):
-            return f"{qty:.2f}"
-        elif any(c in symbol for c in ["PEPE", "SHIB", "BONK", "FLOKI"]):
-            return f"{int(qty)}"
-        elif any(c in symbol for c in ["DOGE", "XRP", "TRX", "ADA", "MATIC"]):
-            return f"{qty:.1f}"
-        return f"{qty:.4f}"
 
     def _live_spot_order(self, symbol: str, side: str, order_type: str,
                           qty: float = None, price: float = None,
                           quote_qty: float = None) -> Dict:
+        client_oid = f"AQ_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
         params = {
             "symbol": symbol,
             "side": side,
             "type": order_type,
+            "newClientOrderId": client_oid,
             "timestamp": int(time.time() * 1000),
             "recvWindow": 60000
         }
@@ -219,11 +272,13 @@ class BinanceExecutor:
         # Set leverage first
         self._live_set_leverage(symbol, leverage)
 
+        client_oid = f"AQ_FUT_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
         params = {
             "symbol": symbol,
             "side": side,
             "type": order_type,
-            "quantity": qty,
+            "quantity": self._format_qty(symbol, qty),
+            "newClientOrderId": client_oid,
             "timestamp": int(time.time() * 1000),
             "recvWindow": 5000
         }
@@ -272,7 +327,7 @@ class BinanceExecutor:
         params = {
             "symbol": symbol,
             "side": "SELL",
-            "quantity": qty,
+            "quantity": self._format_qty(symbol, qty),
             "price": tp_price,
             "stopPrice": sl_stop_price,
             "stopLimitPrice": sl_limit,
@@ -359,6 +414,10 @@ class BinanceExecutor:
         return data if status == 200 and isinstance(data, list) else []
 
     def get_account_balances(self) -> Dict[str, Dict]:
+        now = time.time()
+        if self._balance_cache is not None and (now - self._balance_cache_time) < self._cache_ttl:
+            return self._balance_cache
+
         if not self.api_key or not self.secret_key:
             try:
                 from engine.storage import load_state
@@ -386,20 +445,29 @@ class BinanceExecutor:
                     total = free + locked
                     if total > 0.00000001:
                         res[b["asset"]] = {"free": free, "locked": locked, "total": total}
+                self._balance_cache = res
+                self._balance_cache_time = now
                 return res
             logger.error(f"get_account_balances failed ({status}): {data}")
 
         if self.mode == "paper":
             return {"USDT": {"free": 1000.0, "locked": 0.0, "total": 1000.0}}
         
-        return {}
+        return self._balance_cache or {}
 
     def get_futures_account(self) -> Dict:
-        """Fetch USD-M Futures account balances and margin."""
+        """Fetch USD-M Futures account balances and margin with 6s caching."""
         if self.mode == "paper":
             return {"totalMarginBalance": "0.0", "availableBalance": "0.0", "positions": []}
+        now = time.time()
+        if self._futures_cache is not None and (now - self._futures_cache_time) < self._cache_ttl:
+            return self._futures_cache
         status, data = self._send_signed("GET", f"{self.futures_url}/fapi/v2/account")
-        return data if status == 200 and isinstance(data, dict) else {}
+        if status == 200 and isinstance(data, dict):
+            self._futures_cache = data
+            self._futures_cache_time = now
+            return data
+        return self._futures_cache or {}
 
     def get_my_trades(self, symbol: str = "BTCUSDT", limit: int = 50) -> List[Dict]:
         """Fetch recent executions for a symbol."""

@@ -263,11 +263,23 @@ app.add_middleware(
 def verify_admin_auth(verified: bool = Depends(verify_master_token)):
     return {"authenticated": True, "message": "Master Admin Token valid."}
 
+_wallet_cache_data = None
+_wallet_cache_time = 0.0
+_status_cache_data = None
+_status_cache_time = 0.0
+
 @app.get("/api/status")
 def get_status():
+    global _status_cache_data, _status_cache_time
     if not orchestrator:
         raise HTTPException(503, "System not initialized")
-    return orchestrator.get_full_status()
+    now = time.time()
+    if _status_cache_data and (now - _status_cache_time) < 4.0:
+        return _status_cache_data
+    res = orchestrator.get_full_status()
+    _status_cache_data = res
+    _status_cache_time = now
+    return res
 
 @app.get("/api/health")
 def health_check():
@@ -278,7 +290,7 @@ def health_check():
     }
 
 @app.get("/api/debug/binance")
-def debug_binance():
+def debug_binance(verified: bool = Depends(verify_master_token)):
     if not orchestrator or not hasattr(orchestrator, "executor"):
         return {"error": "No executor"}
     ex = orchestrator.executor
@@ -338,8 +350,13 @@ def get_positions():
 
 @app.get("/api/wallet")
 def get_wallet():
+    global _wallet_cache_data, _wallet_cache_time
     if not orchestrator:
         raise HTTPException(503)
+    now = time.time()
+    if _wallet_cache_data and (now - _wallet_cache_time) < 5.0:
+        return _wallet_cache_data
+
     balances = {}
     try:
         if hasattr(orchestrator.executor, "get_account_balances"):
@@ -440,7 +457,7 @@ def get_wallet():
     except Exception:
         pass
 
-    return {
+    res_wallet = {
         "mode": orchestrator.executor.mode,
         "total_equity_usd": final_total,
         "spot_usd": round(spot_usd, 2),
@@ -449,6 +466,9 @@ def get_wallet():
         "futures_account": futures_data,
         "assets": items
     }
+    _wallet_cache_data = res_wallet
+    _wallet_cache_time = now
+    return res_wallet
 
 class ModeSwitchPayload(BaseModel):
     mode: str

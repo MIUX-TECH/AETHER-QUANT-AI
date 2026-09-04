@@ -544,22 +544,90 @@ class TradingOrchestrator:
         """Generate end-of-day report."""
         return self.report_service.generate_daily_report(self.state, self._closed_today)
 
+    def _sync_positions_from_holdings(self, wallet_balances: Dict) -> None:
+        """Reconstruct active position objects if memory state was reset after container reboot."""
+        if not wallet_balances or not isinstance(wallet_balances, dict):
+            return
+        
+        spot_dict = self.state.setdefault("positions", {}).setdefault("spot", {})
+        
+        SYMBOLS_MAP = {
+            "BTC": "BTCUSDT",
+            "ETH": "ETHUSDT",
+            "SOL": "SOLUSDT",
+            "BNB": "BNBUSDT",
+            "XRP": "XRPUSDT",
+            "NEAR": "NEARUSDT",
+            "AVAX": "AVAXUSDT"
+        }
+        
+        for base, sym in SYMBOLS_MAP.items():
+            if sym in spot_dict:
+                continue
+            
+            # Combine spot and LD flexible earn quantity
+            qty_spot = float(wallet_balances.get(base, {}).get("total", 0.0))
+            qty_earn = float(wallet_balances.get(f"LD{base}", {}).get("total", 0.0))
+            tot_qty = qty_spot + qty_earn
+            
+            if tot_qty <= 0:
+                continue
+                
+            curr_price = self.market_data.get_price(sym) or 1.0
+            val_usd = tot_qty * curr_price
+            
+            # Only track meaningful positions (> $1.00)
+            if val_usd >= 1.0:
+                entry_price = curr_price
+                # Try to get true entry price from recent myTrades
+                try:
+                    trades = self.executor.get_my_trades(sym, limit=5)
+                    buy_trades = [t for t in trades if t.get("isBuyer", True)]
+                    if buy_trades:
+                        entry_price = float(buy_trades[-1].get("price", curr_price))
+                except Exception:
+                    entry_price = curr_price
+
+                pnl_pct = ((curr_price - entry_price) / entry_price) * 100 if entry_price > 0 else 0
+                pnl_usd = (curr_price - entry_price) * tot_qty
+
+                spot_dict[sym] = {
+                    "symbol": sym,
+                    "side": "BUY",
+                    "trade_type": "spot",
+                    "entry_price": round(entry_price, 4),
+                    "current_price": round(curr_price, 4),
+                    "qty": tot_qty,
+                    "position_usdt": round(val_usd, 2),
+                    "sl_price": round(entry_price * 0.98, 4),
+                    "tp_price": round(entry_price * 1.035, 4),
+                    "trailing_stop_pct": 0.025,
+                    "trailing_stop_price": round(curr_price * 0.975, 4),
+                    "unrealized_pnl": round(pnl_usd, 4),
+                    "unrealized_pnl_pct": round(pnl_pct, 2),
+                    "status": "active",
+                    "opened_at": datetime.utcnow().isoformat(),
+                    "regime": self.state.get("scanner", {}).get("market_regime", "trending_up"),
+                    "reconstructed": True
+                }
+
     def get_full_status(self) -> Dict:
         """Full system status for UI."""
         portfolio = self.state.get("portfolio", {})
         risk_summary = self.risk_manager.get_risk_summary(self.state)
-
-        # Update exposure
-        self.state.setdefault("risk", {})["total_exposure_pct"] = self.portfolio_manager.get_total_exposure_pct()
-        portfolio["unrealized_pnl"] = self.portfolio_manager.get_total_unrealized_pnl()
 
         # Multi-asset live wallet balances
         wallet_balances = {}
         try:
             if hasattr(self.executor, "get_account_balances"):
                 wallet_balances = self.executor.get_account_balances()
+                self._sync_positions_from_holdings(wallet_balances)
         except Exception:
             pass
+
+        # Update exposure & PnL
+        self.state.setdefault("risk", {})["total_exposure_pct"] = self.portfolio_manager.get_total_exposure_pct()
+        portfolio["unrealized_pnl"] = self.portfolio_manager.get_total_unrealized_pnl()
 
         return {
             "system": self.state.get("system", {}),

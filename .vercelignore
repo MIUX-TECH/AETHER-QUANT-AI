@@ -1,0 +1,16 @@
+api/
+engine/
+config/
+state/
+memory/
+history/
+reports/
+scripts/
+venv/
+.venv/
+.python-version
+uv.lock
+pyproject.toml
+requirements.txt
+Dockerfile
+render.yaml
