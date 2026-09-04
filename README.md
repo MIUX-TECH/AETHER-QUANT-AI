@@ -186,71 +186,68 @@ Switch mode from the UI Settings page or in `.env` (`TRADING_MODE=paper`).
 
 ---
 
-## AI Decision Flow
+## AI Decision Flow & Two-Layer Gatekeeping Architecture
 
 ```
-Every 60s (configurable):
+Every 60s (Autonomous Scheduler Cycle):
 
-1. NEWS/SENTIMENT
-   CryptoPanic / NewsAPI → sentiment score per symbol
-   (Optional, degraded gracefully if APIs unavailable)
+ LAYER 1: DETERMINISTIC QUANTITATIVE SCORING ENGINE
+ ─────────────────────────────────────────────────────────────
+ 1. MARKET DATA INGESTION
+    Multi-tier K-Line Cache (1d: 4h, 4h: 2h, 1h: 30m, 15m: 5m, 5m: 1m)
+    Weight-aware throttle (X-MBX-USED-WEIGHT-1M) + Binance Cluster Failover
 
-2. MARKET DATA
-   Binance REST → OHLCV for 5 timeframes (5m, 15m, 1h, 4h, 1d)
+ 2. TECHNICAL INDICATOR SUITE
+    EMA(9,21,50,200) · RSI(14) · MACD · ATR(14) · ADX(14) · Bollinger Bands
 
-3. INDICATORS
-   EMA(9,21,50,200) · RSI · MACD · ATR · ADX · BB · Volume
+ 3. MARKET REGIME CLASSIFIER
+    Multi-TF ADX + BB width + RSI extremes + Price Velocity
+    → trending_up / trending_down / ranging / panic / euphoria
 
-4. REGIME CLASSIFICATION
-   Multi-TF ADX + BB width + RSI extremes + price velocity
-   → trending_up / trending_down / ranging / expansion / compression / panic / euphoria
+ 4. QUANTITATIVE COMPONENT SCORING (per symbol)
+    Weighted component scores (adaptive weights calibrated by historical memory):
+    - Trend (20%): EMA alignment, structure HH/HL
+    - Momentum (18%): RSI dynamic zones, MACD histogram
+    - Structure (15%): Price action, candle patterns, Key S/R
+    - Volume (12%): Volume spike, taker buy/sell pressure
+    - HTF Alignment (15%): 1D/4H macro bias, EMA200
+    - Volatility (8%): ATR range & expansion checks
+    - Sentiment (7%): Deep news sentiment (CryptoPanic/NewsAPI/Groq)
+    - Risk Guard (5%): Inverted regime risk penalty
 
-5. AI SCORING (per symbol)
-   Weighted component scores (adaptive weights from memory):
-   - Trend (20%): EMA alignment, market structure HH/HL
-   - Momentum (18%): RSI zones, MACD
-   - Structure (15%): Price action, candle patterns, S/R
-   - Volume (12%): Volume spike, taker pressure
-   - HTF Alignment (15%): 1D/4H bias, EMA200
-   - Volatility (8%): ATR range check
-   - Sentiment (7%): News score
-   - Risk (5%): Regime risk level (inverted)
+ 5. QUANTITATIVE SIGNAL GENERATION
+    Score ≥ 0.82 → STRONG_BUY | Score ≥ 0.68 → BUY | Score ≥ 0.52 → HOLD
+    Score ≤ 0.22 → SHORT      | Score ≤ 0.32 → SELL | else → WAIT/AVOID
 
-6. SIGNAL DETERMINATION
-   Score ≥ 0.82 → STRONG_BUY
-   Score ≥ 0.68 → BUY
-   Score ≥ 0.52 → HOLD
-   Score ≥ 0.42 → REDUCE
-   Score ≥ 0.32 → SELL
-   Score ≥ 0.22 → SHORT
-   else         → AVOID
+ 6. RISK FILTER & CAPITAL SIZING (RiskManager)
+    - Kill switch / Safe mode / Cooldown checks
+    - Drawdown Guard: Risk-off at 10% DD, Capital preservation at 15% DD
+    - Auto-Recovery: Hysteresis reset to normal mode when DD < 8%
+    - ATR-based Position Sizing: Risk amount / (2 * ATR / Entry Price)
 
-7. RISK FILTER
-   Kill switch? → Blocked
-   Cooldown? → Blocked
-   Daily loss limit? → Blocked
-   Drawdown limit? → Blocked
-   Confidence < min? → Blocked
-   Max exposure? → Blocked
+ LAYER 2: LLM REASONING & VALIDATION GATEKEEPER (Groq Qwen 2.5)
+ ─────────────────────────────────────────────────────────────
+ 7. AI TRADE VALIDATION (GroqAIClient)
+    - Triggered ONLY on high-conviction signals (Quant Score ≥ 0.68)
+    - Prompts Qwen with: Quant score, Regime, Bullish/Bearish factors, Indicators,
+      Historical win rate & loss patterns
+    - Validates setup quality vs fakeout risk
+    - Fail-Closed Invariant: Defaults to SKIP/WAIT if AI API unavailable
 
-8. POSITION SIZING
-   ATR-based risk: risk_amount / (sl_distance / price)
-   Cap by available capital, max per-coin exposure
+ 8. IDEMPOTENT ORDER EXECUTION (BinanceExecutor)
+    - Unified `newClientOrderId` per trade intent
+    - Precise Decimal quantization using Binance `exchangeInfo` stepSize filters
+    - Spot & USD-M Futures with isolated leverage and circuit-breaker backoff
 
-9. EXECUTION
-   Paper: Simulated fill + fee deduction
-   Live: Binance market order with retry logic
+ 9. CONTINUOUS POSITION MONITORING
+    - Reconstructed from holdings & `myTrades` on reboot
+    - 40% Partial Take-Profit (TP1 at +3.5%) with auto-move SL to BEP (Breakeven)
+    - 60% Runner Adaptive Trailing Stop (2.5%)
 
-10. MONITORING (continuous)
-    Update PnL, check SL/TP/trailing stop, partial TP
-    Signal reversal → early exit
-
-11. MEMORY UPDATE (every 30min)
-    Analyze closed trades → adjust adaptive weights
-    Update coin profiles, regime performance, lessons
-
-12. DAILY REPORT (00:00 UTC)
-    Save daily_report_YYYY_MM_DD.json
+ 10. ADAPTIVE MEMORY & EXTERNAL PERSISTENCE
+     - Synced to Upstash Redis REST API / local atomic files
+     - Adaptive weights updated every 30m based on closed trade performance
+     - Automated daily reporting (00:00 UTC)
 ```
 
 ---

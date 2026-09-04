@@ -69,6 +69,9 @@ class BinanceExecutor:
     def get_symbol_rules(self, symbol: str) -> Dict:
         """Fetch and cache LOT_SIZE, MIN_NOTIONAL and PRICE_FILTER for symbol."""
         now = time.time()
+        if symbol in self._symbol_rules and (now - self._exchange_info_time) <= 14400:
+            return self._symbol_rules[symbol]
+
         if not self._exchange_info or (now - self._exchange_info_time) > 14400:
             try:
                 r = requests.get(f"{self.base_url}/api/v3/exchangeInfo", timeout=10, headers={"User-Agent": "Mozilla/5.0"})
@@ -227,10 +230,10 @@ class BinanceExecutor:
         rules = self.get_symbol_rules(symbol)
         step_size_str = rules.get("stepSize", "0.0001")
         try:
-            from decimal import Decimal, ROUND_DOWN
-            step = Decimal(str(step_size_str))
+            from decimal import Decimal
+            step = Decimal(str(float(step_size_str)))
             d_qty = Decimal(str(qty))
-            formatted = d_qty.quantize(step, rounding=ROUND_DOWN)
+            formatted = (d_qty // step) * step
             if step >= 1:
                 return str(int(formatted))
             res = f"{formatted:f}".rstrip('0').rstrip('.') if '.' in f"{formatted:f}" else str(formatted)

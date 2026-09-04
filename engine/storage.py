@@ -209,6 +209,41 @@ def get_report_path(prefix: str, period: str = "daily", dt: Optional[datetime] =
     return DIRS["reports"] / fname
 
 
+def _upstash_get(key: str) -> Optional[Dict]:
+    url = os.getenv("UPSTASH_REDIS_REST_URL", "").rstrip("/")
+    token = os.getenv("UPSTASH_REDIS_REST_TOKEN", "")
+    if not url or not token:
+        return None
+    try:
+        import requests
+        r = requests.get(f"{url}/get/{key}", headers={"Authorization": f"Bearer {token}"}, timeout=4)
+        if r.status_code == 200:
+            res = r.json().get("result")
+            if res:
+                if isinstance(res, str):
+                    return json.loads(res)
+                elif isinstance(res, dict):
+                    return res
+    except Exception as e:
+        logger.debug(f"Upstash GET failed for key {key}: {e}")
+    return None
+
+
+def _upstash_set(key: str, data: Any) -> bool:
+    url = os.getenv("UPSTASH_REDIS_REST_URL", "").rstrip("/")
+    token = os.getenv("UPSTASH_REDIS_REST_TOKEN", "")
+    if not url or not token:
+        return False
+    try:
+        import requests
+        serialized = json.dumps(data, ensure_ascii=False, default=str)
+        r = requests.post(f"{url}/set/{key}", headers={"Authorization": f"Bearer {token}"}, data=serialized, timeout=4)
+        return r.status_code == 200
+    except Exception as e:
+        logger.debug(f"Upstash SET failed for key {key}: {e}")
+        return False
+
+
 def load_config(name: str) -> Dict:
     return read_json(DIRS["config"] / f"{name}.json")
 
@@ -218,19 +253,37 @@ def save_config(name: str, data: Dict) -> bool:
 
 
 def load_state() -> Dict:
-    return read_json(DIRS["state"] / "runtime_state.json")
+    local = read_json(DIRS["state"] / "runtime_state.json")
+    if not local or local == {}:
+        remote = _upstash_get("runtime_state")
+        if remote:
+            logger.info("Loaded runtime_state from external Upstash Redis")
+            write_json(DIRS["state"] / "runtime_state.json", remote, backup=False)
+            return remote
+    return local
 
 
 def save_state(data: Dict) -> bool:
-    return write_json(DIRS["state"] / "runtime_state.json", data, backup=True)
+    ok = write_json(DIRS["state"] / "runtime_state.json", data, backup=True)
+    _upstash_set("runtime_state", data)
+    return ok
 
 
 def load_memory(name: str) -> Dict:
-    return read_json(DIRS["memory"] / f"{name}.json")
+    local = read_json(DIRS["memory"] / f"{name}.json")
+    if not local or local == {}:
+        remote = _upstash_get(f"memory_{name}")
+        if remote:
+            logger.info(f"Loaded memory {name} from external Upstash Redis")
+            write_json(DIRS["memory"] / f"{name}.json", remote, backup=False)
+            return remote
+    return local
 
 
 def save_memory(name: str, data: Dict) -> bool:
-    return write_json(DIRS["memory"] / f"{name}.json", data, backup=True)
+    ok = write_json(DIRS["memory"] / f"{name}.json", data, backup=True)
+    _upstash_set(f"memory_{name}", data)
+    return ok
 
 
 def validate_schema(data: Dict, required_keys: List[str]) -> bool:
