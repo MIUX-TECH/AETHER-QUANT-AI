@@ -305,6 +305,27 @@ def reset_cooldown(verified: bool = Depends(verify_master_token)):
     _wallet_cache_data = None
     return {"status": "cooldown_reset", "timestamp": datetime.utcnow().isoformat()}
 
+class UpstashConfigPayload(BaseModel):
+    url: str
+    token: str
+
+@app.post("/api/admin/set-upstash")
+def set_upstash(payload: UpstashConfigPayload, verified: bool = Depends(verify_master_token)):
+    from engine.storage import set_upstash_credentials, save_state, load_state, _upstash_get
+    ok = set_upstash_credentials(payload.url, payload.token)
+    if not ok:
+        raise HTTPException(500, "Failed to persist Upstash credentials")
+    # Immediate sync verification
+    current = orchestrator.state if orchestrator else load_state()
+    save_state(current)
+    test_ret = _upstash_get("runtime_state")
+    return {
+        "status": "connected",
+        "verified": bool(test_ret is not None),
+        "endpoint": payload.url.replace("https://", "").replace("http://", ""),
+        "timestamp": datetime.utcnow().isoformat()
+    }
+
 @app.get("/api/debug/binance")
 def debug_binance(verified: bool = Depends(verify_master_token)):
     if not orchestrator or not hasattr(orchestrator, "executor"):

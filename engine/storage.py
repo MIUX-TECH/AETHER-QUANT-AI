@@ -209,9 +209,43 @@ def get_report_path(prefix: str, period: str = "daily", dt: Optional[datetime] =
     return DIRS["reports"] / fname
 
 
-def _upstash_get(key: str) -> Optional[Dict]:
+def _get_upstash_creds() -> tuple:
     url = os.getenv("UPSTASH_REDIS_REST_URL", "").rstrip("/")
     token = os.getenv("UPSTASH_REDIS_REST_TOKEN", "")
+    if url and token:
+        return url, token
+    try:
+        cfg = read_json(DIRS["config"] / "app.json", default={})
+        storage_cfg = cfg.get("storage", {})
+        url = (storage_cfg.get("upstash_rest_url") or "").rstrip("/")
+        token = storage_cfg.get("upstash_rest_token") or ""
+        if url and token:
+            return url, token
+    except Exception:
+        pass
+    return "", ""
+
+
+def set_upstash_credentials(url: str, token: str) -> bool:
+    """Dynamically set and persist Upstash Redis credentials."""
+    url = url.strip().rstrip("/")
+    token = token.strip()
+    os.environ["UPSTASH_REDIS_REST_URL"] = url
+    os.environ["UPSTASH_REDIS_REST_TOKEN"] = token
+    try:
+        cfg_path = DIRS["config"] / "app.json"
+        cfg = read_json(cfg_path, default={})
+        cfg.setdefault("storage", {})["upstash_rest_url"] = url
+        cfg.setdefault("storage", {})["upstash_rest_token"] = token
+        write_json(cfg_path, cfg, backup=False)
+        return True
+    except Exception as e:
+        logger.error(f"Failed to persist Upstash credentials to config: {e}")
+        return False
+
+
+def _upstash_get(key: str) -> Optional[Dict]:
+    url, token = _get_upstash_creds()
     if not url or not token:
         logger.debug(f"Upstash credentials not configured, skipping remote GET for '{key}'")
         return None
@@ -233,8 +267,7 @@ def _upstash_get(key: str) -> Optional[Dict]:
 
 
 def _upstash_set(key: str, data: Any) -> bool:
-    url = os.getenv("UPSTASH_REDIS_REST_URL", "").rstrip("/")
-    token = os.getenv("UPSTASH_REDIS_REST_TOKEN", "")
+    url, token = _get_upstash_creds()
     if not url or not token:
         logger.debug(f"Upstash credentials not configured, skipping remote SET for '{key}'")
         return False
