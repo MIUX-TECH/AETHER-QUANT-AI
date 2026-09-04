@@ -134,7 +134,8 @@ class GroqAIClient:
             except Exception as e:
                 logger.warning(f"Failed to parse Groq trade validation JSON: {e} | raw={raw[:100]}")
 
-        return {"approved": True, "confidence": quant_score, "reasoning": "Validasi AI disetujui"}
+        # Fail-closed: if AI validation was requested but Groq API failed/timed out, skip entry for risk safety
+        return {"approved": False, "confidence": 0.0, "reasoning": "AI validation unavailable / timed out — trade skipped for capital safety"}
 
     def extract_trade_lesson(self, closed_trade: Dict) -> str:
         """

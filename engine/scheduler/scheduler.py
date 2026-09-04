@@ -52,6 +52,10 @@ class Scheduler:
         self.jobs[name] = Job(name, fn, interval)
         logger.info(f"Registered job: {name} (every {interval}s)")
 
+    @property
+    def is_running(self) -> bool:
+        return self._running
+
     def start(self):
         """Start scheduler in background thread."""
         if self._running:
