@@ -560,22 +560,35 @@ class TradingOrchestrator:
             "NEAR": "NEARUSDT",
             "AVAX": "AVAXUSDT"
         }
-        
         for base, sym in SYMBOLS_MAP.items():
-            if sym in spot_dict:
-                continue
-            
-            # Combine spot and LD flexible earn quantity
             qty_spot = float(wallet_balances.get(base, {}).get("total", 0.0))
             qty_earn = float(wallet_balances.get(f"LD{base}", {}).get("total", 0.0))
             tot_qty = qty_spot + qty_earn
-            
             if tot_qty <= 0:
                 continue
-                
-            curr_price = self.market_data.get_price(sym) or 1.0
+
+            FALLBACK_PRICES = {
+                "BTCUSDT": 80800.0, "ETHUSDT": 2500.0, "SOLUSDT": 103.0,
+                "BNBUSDT": 615.0, "XRPUSDT": 2.20, "NEARUSDT": 3.80, "AVAXUSDT": 23.0
+            }
+            curr_price = self.market_data.get_price(sym)
+            if not curr_price or curr_price <= 1.0:
+                curr_price = FALLBACK_PRICES.get(sym, 1.0)
             val_usd = tot_qty * curr_price
             
+            # If position already exists, update live valuation & PnL
+            if sym in spot_dict:
+                entry_p = spot_dict[sym].get("entry_price", curr_price)
+                pnl_pct = ((curr_price - entry_p) / entry_p) * 100 if entry_p > 0 else 0
+                pnl_usd = (curr_price - entry_p) * tot_qty
+                spot_dict[sym]["current_price"] = round(curr_price, 4)
+                spot_dict[sym]["position_usdt"] = round(val_usd, 2)
+                spot_dict[sym]["unrealized_pnl"] = round(pnl_usd, 4)
+                spot_dict[sym]["unrealized_pnl_pct"] = round(pnl_pct, 2)
+                trail = spot_dict[sym].get("trailing_stop_pct", 0.025)
+                spot_dict[sym]["trailing_stop_price"] = round(curr_price * (1 - trail), 4)
+                continue
+
             # Only track meaningful positions (> $1.00)
             if val_usd >= 1.0:
                 entry_price = curr_price
