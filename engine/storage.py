@@ -213,6 +213,7 @@ def _upstash_get(key: str) -> Optional[Dict]:
     url = os.getenv("UPSTASH_REDIS_REST_URL", "").rstrip("/")
     token = os.getenv("UPSTASH_REDIS_REST_TOKEN", "")
     if not url or not token:
+        logger.debug(f"Upstash credentials not configured, skipping remote GET for '{key}'")
         return None
     try:
         import requests
@@ -220,12 +221,14 @@ def _upstash_get(key: str) -> Optional[Dict]:
         if r.status_code == 200:
             res = r.json().get("result")
             if res:
-                if isinstance(res, str):
-                    return json.loads(res)
-                elif isinstance(res, dict):
-                    return res
+                parsed = json.loads(res) if isinstance(res, str) else res
+                if isinstance(parsed, dict) and parsed:
+                    logger.info(f"✅ [UPSTASH REDIS] GET '{key}' successful — restored persistent cloud state")
+                    return parsed
+        else:
+            logger.warning(f"⚠️ [UPSTASH REDIS] GET '{key}' returned HTTP {r.status_code}: {r.text[:100]}")
     except Exception as e:
-        logger.debug(f"Upstash GET failed for key {key}: {e}")
+        logger.warning(f"⚠️ [UPSTASH REDIS] GET '{key}' connection failed: {e}")
     return None
 
 
@@ -233,14 +236,20 @@ def _upstash_set(key: str, data: Any) -> bool:
     url = os.getenv("UPSTASH_REDIS_REST_URL", "").rstrip("/")
     token = os.getenv("UPSTASH_REDIS_REST_TOKEN", "")
     if not url or not token:
+        logger.debug(f"Upstash credentials not configured, skipping remote SET for '{key}'")
         return False
     try:
         import requests
         serialized = json.dumps(data, ensure_ascii=False, default=str)
         r = requests.post(f"{url}/set/{key}", headers={"Authorization": f"Bearer {token}"}, data=serialized, timeout=4)
-        return r.status_code == 200
+        if r.status_code == 200:
+            logger.info(f"✅ [UPSTASH REDIS] SET '{key}' successful ({len(serialized)} bytes synced to cloud)")
+            return True
+        else:
+            logger.warning(f"⚠️ [UPSTASH REDIS] SET '{key}' returned HTTP {r.status_code}: {r.text[:100]}")
+            return False
     except Exception as e:
-        logger.debug(f"Upstash SET failed for key {key}: {e}")
+        logger.warning(f"⚠️ [UPSTASH REDIS] SET '{key}' connection failed: {e}")
         return False
 
 
@@ -253,14 +262,22 @@ def save_config(name: str, data: Dict) -> bool:
 
 
 def load_state() -> Dict:
+    # 1. Try Upstash Redis remote persistence first if configured
+    remote = _upstash_get("runtime_state")
+    if remote and isinstance(remote, dict) and remote.get("portfolio") or remote.get("positions"):
+        logger.info("Loaded runtime_state from external Upstash Redis cloud persistence")
+        write_json(DIRS["state"] / "runtime_state.json", remote, backup=False)
+        return remote
+
+    # 2. Fallback to local storage
     local = read_json(DIRS["state"] / "runtime_state.json")
-    if not local or local == {}:
-        remote = _upstash_get("runtime_state")
-        if remote:
-            logger.info("Loaded runtime_state from external Upstash Redis")
-            write_json(DIRS["state"] / "runtime_state.json", remote, backup=False)
-            return remote
-    return local
+    if local:
+        return local
+
+    if remote:
+        return remote
+
+    return {}
 
 
 def save_state(data: Dict) -> bool:
@@ -270,14 +287,14 @@ def save_state(data: Dict) -> bool:
 
 
 def load_memory(name: str) -> Dict:
+    remote = _upstash_get(f"memory_{name}")
+    if remote and isinstance(remote, dict):
+        logger.info(f"Loaded memory '{name}' from external Upstash Redis cloud persistence")
+        write_json(DIRS["memory"] / f"{name}.json", remote, backup=False)
+        return remote
+
     local = read_json(DIRS["memory"] / f"{name}.json")
-    if not local or local == {}:
-        remote = _upstash_get(f"memory_{name}")
-        if remote:
-            logger.info(f"Loaded memory {name} from external Upstash Redis")
-            write_json(DIRS["memory"] / f"{name}.json", remote, backup=False)
-            return remote
-    return local
+    return local if local else {}
 
 
 def save_memory(name: str, data: Dict) -> bool:
