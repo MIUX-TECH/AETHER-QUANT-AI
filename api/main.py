@@ -396,7 +396,9 @@ def get_wallet():
     # Fetch real-time market prices for accurate valuation
     price_map = {}
     try:
-        r = requests.get("https://api1.binance.com/api/v3/ticker/price", timeout=8)
+        r = requests.get("https://data-api.binance.vision/api/v3/ticker/price", timeout=8)
+        if r.status_code != 200:
+            r = requests.get("https://api1.binance.com/api/v3/ticker/price", timeout=8)
         if r.status_code == 200:
             price_map = {p["symbol"]: float(p["price"]) for p in r.json() if "USDT" in p.get("symbol", "")}
     except Exception:
@@ -432,7 +434,9 @@ def get_wallet():
                 price = float(scan_res[sym]["price"])
             else:
                 try:
-                    pr_res = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={sym}", timeout=3)
+                    pr_res = requests.get(f"https://data-api.binance.vision/api/v3/ticker/price?symbol={sym}", timeout=3)
+                    if pr_res.status_code != 200:
+                        pr_res = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={sym}", timeout=3)
                     if pr_res.status_code == 200:
                         price = float(pr_res.json().get("price", 0))
                         price_map[sym] = price
