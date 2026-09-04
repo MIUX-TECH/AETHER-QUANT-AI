@@ -17,7 +17,7 @@ import os
 
 logger = logging.getLogger(__name__)
 
-BINANCE_BASE = "https://api.binance.com"
+BINANCE_BASE = "https://api1.binance.com"
 BINANCE_TESTNET = "https://testnet.binance.vision"
 FUTURES_BASE = "https://fapi.binance.com"
 FUTURES_TESTNET = "https://testnet.binancefuture.com"

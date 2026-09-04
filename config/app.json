@@ -10,7 +10,7 @@
   },
   "binance": {
     "testnet": false,
-    "base_url": "https://api.binance.com",
+    "base_url": "https://api1.binance.com",
     "futures_base_url": "https://fapi.binance.com",
     "recv_window": 60000,
     "max_retries": 3,

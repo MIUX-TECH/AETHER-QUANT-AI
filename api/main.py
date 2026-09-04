@@ -350,7 +350,7 @@ def get_wallet():
     # Fetch real-time market prices for accurate valuation
     price_map = {}
     try:
-        r = requests.get("https://api.binance.com/api/v3/ticker/price", timeout=8)
+        r = requests.get("https://api1.binance.com/api/v3/ticker/price", timeout=8)
         if r.status_code == 200:
             price_map = {p["symbol"]: float(p["price"]) for p in r.json() if "USDT" in p.get("symbol", "")}
     except Exception:
@@ -471,7 +471,7 @@ def switch_mode(payload: ModeSwitchPayload, verified: bool = Depends(verify_mast
     if hasattr(orchestrator, "executor"):
         orchestrator.executor.mode = mode
         orchestrator.executor.testnet = testnet
-        orchestrator.executor.base_url = "https://testnet.binance.vision" if testnet else "https://api.binance.com"
+        orchestrator.executor.base_url = "https://testnet.binance.vision" if testnet else "https://api1.binance.com"
         orchestrator.executor.futures_url = "https://testnet.binancefuture.com" if testnet else "https://fapi.binance.com"
         if payload.api_key and payload.secret_key:
             orchestrator.executor.api_key = payload.api_key.strip()
