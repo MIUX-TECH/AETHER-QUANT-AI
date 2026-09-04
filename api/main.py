@@ -371,7 +371,13 @@ def get_wallet():
             elif sym in scan_res and scan_res[sym].get("price", 0) > 0:
                 price = float(scan_res[sym]["price"])
             else:
-                price = 0.0
+                try:
+                    pr_res = requests.get(f"https://api.binance.com/api/v3/ticker/price?symbol={sym}", timeout=3)
+                    if pr_res.status_code == 200:
+                        price = float(pr_res.json().get("price", 0))
+                        price_map[sym] = price
+                except Exception:
+                    price = 0.0
 
         usd_val = total * price if price > 0 else 0
         
