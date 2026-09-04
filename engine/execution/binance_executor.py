@@ -351,14 +351,15 @@ class BinanceExecutor:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         }
 
-        CLUSTER_HOSTS = ["api.binance.com", "api1.binance.com", "api2.binance.com", "api3.binance.com"]
+        import re
+        CLUSTER_HOSTS = ["api.binance.com", "api1.binance.com", "api2.binance.com", "api3.binance.com", "api4.binance.com"]
         last_err = None
         for attempt in range(self.max_retries):
             # Failover cluster endpoint on retry
             cur_url = full_url
-            if attempt > 0 and not self.testnet and "api.binance.com" in full_url:
+            if attempt > 0 and not self.testnet:
                 alt_host = CLUSTER_HOSTS[attempt % len(CLUSTER_HOSTS)]
-                cur_url = full_url.replace("api.binance.com", alt_host)
+                cur_url = re.sub(r"https://(api\d*|data-api)\.binance\.(com|vision)", f"https://{alt_host}", full_url)
 
             try:
                 if method.upper() == "GET":
