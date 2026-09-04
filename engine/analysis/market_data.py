@@ -56,7 +56,7 @@ class MarketDataService:
         self.secret_key = secret_key
         self.testnet = testnet
         self.mode = mode
-        self.base_url = BINANCE_TESTNET if testnet else "https://api1.binance.com"
+        self.base_url = BINANCE_TESTNET if testnet else "https://data-api.binance.vision"
         self.futures_url = FUTURES_TESTNET if testnet else FUTURES_BASE
         self.session = requests.Session()
         self.session.headers.update({

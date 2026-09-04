@@ -142,6 +142,7 @@ class MarketScanner:
         sentiment_scores = sentiment_scores or {}
         coin_memories = coin_memories or {}
 
+        import time
         for symbol in symbols:
             sentiment = sentiment_scores.get(symbol, 0.5)
             memory = coin_memories.get(symbol, {})
@@ -150,6 +151,7 @@ class MarketScanner:
                 results[symbol] = result
             else:
                 results[symbol] = self._empty_result(symbol, "Scan returned None")
+            time.sleep(0.15)
 
         logger.info(f"Scan complete: {len(results)} symbols processed")
         return results
