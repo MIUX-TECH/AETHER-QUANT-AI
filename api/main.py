@@ -272,6 +272,14 @@ def get_status():
     if _status_cache_data and (now - _status_cache_time) < 4.0:
         return _status_cache_data
     res = orchestrator.get_full_status()
+    try:
+        w = get_wallet()
+        if w.get("total_equity_usd", 0) > 0:
+            res["portfolio"]["total_equity"] = w["total_equity_usd"]
+            res["portfolio"]["spot_equity"] = w.get("spot_usd", w["total_equity_usd"])
+            res["portfolio"]["futures_equity"] = w.get("futures_usd", 0.0)
+    except Exception:
+        pass
     _status_cache_data = res
     _status_cache_time = now
     return res
@@ -455,11 +463,13 @@ def get_wallet():
 
     final_total = round(total_usd, 2) if total_usd > 0 else (1000.0 if orchestrator.executor.mode == "paper" else 0.0)
 
-    # Update orchestrator state memory
+    # Update orchestrator state memory & sync positions
     try:
         orchestrator.portfolio_manager.state["portfolio"]["total_equity"] = final_total
         orchestrator.portfolio_manager.state["portfolio"]["spot_equity"] = round(spot_usd + earn_usd, 2)
         orchestrator.portfolio_manager.state["portfolio"]["futures_equity"] = round(futures_usd, 2)
+        if hasattr(orchestrator, "_sync_positions_from_holdings"):
+            orchestrator._sync_positions_from_holdings(balances)
     except Exception:
         pass
 
