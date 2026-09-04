@@ -315,12 +315,20 @@ def trigger_scan(verified: bool = Depends(verify_master_token)):
     result = orchestrator.run_scan_cycle()
     return result
 
+_portfolio_cache_data = None
+_portfolio_cache_time = 0.0
+
 @app.get("/api/portfolio")
 def get_portfolio():
+    global _portfolio_cache_data, _portfolio_cache_time
     if not orchestrator:
         raise HTTPException(503)
+    now = time.time()
+    if _portfolio_cache_data and (now - _portfolio_cache_time) < 4.0:
+        return _portfolio_cache_data
+
     status = orchestrator.get_full_status()
-    # Pull dynamic wallet valuation
+    # Pull dynamic wallet valuation from cached get_wallet
     try:
         w = get_wallet()
         if w.get("total_equity_usd", 0) > 0:
@@ -330,12 +338,15 @@ def get_portfolio():
     except Exception:
         pass
 
-    return {
+    res = {
         "portfolio": status["portfolio"],
         "positions": status["positions"],
         "risk": status["risk"],
         "allocations": orchestrator.portfolio_manager.get_allocations()
     }
+    _portfolio_cache_data = res
+    _portfolio_cache_time = now
+    return res
 
 @app.get("/api/positions")
 def get_positions():

@@ -50,6 +50,7 @@ class BinanceExecutor:
         self._exchange_info_time = 0.0
         self._symbol_rules = {}
         self._cache_ttl = 6.0  # seconds
+        self.cooldown_until = 0.0
         self._sync_time()
 
     def _sync_time(self):
@@ -336,7 +337,11 @@ class BinanceExecutor:
         return self._signed_post(f"{self.base_url}/api/v3/order/oco", params)
 
     def _send_signed(self, method: str, url: str, params: dict = None) -> Tuple[int, Any]:
-        """Send authenticated request with exact URL-encoded signature."""
+        now = time.time()
+        if now < self.cooldown_until:
+            logger.warning(f"BinanceExecutor in cooldown for {int(self.cooldown_until - now)}s. Skipping signed call.")
+            return 429, {"error": "Rate limit cooldown active", "code": -1003}
+
         import urllib.parse
         p = dict(params or {})
         p.setdefault("recvWindow", 60000)
@@ -378,6 +383,17 @@ class BinanceExecutor:
 
                 if r.status_code == 200:
                     return 200, data
+
+                if r.status_code in [418, 429]:
+                    ban_until = time.time() + 180
+                    if isinstance(data, dict) and "msg" in data:
+                        import re as rematch
+                        m = rematch.search(r"banned until (\d+)", data["msg"])
+                        if m:
+                            ban_until = int(m.group(1)) / 1000.0
+                    self.cooldown_until = ban_until
+                    logger.error(f"🚨 Binance Signed Request HTTP {r.status_code}: IP in cooldown until {datetime.utcfromtimestamp(self.cooldown_until).isoformat()}")
+                    return r.status_code, data
 
                 last_err = {"http_status": r.status_code, "body": data}
                 code = data.get("code", 0) if isinstance(data, dict) else 0
