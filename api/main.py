@@ -270,17 +270,31 @@ def get_status():
     return orchestrator.get_full_status()
 
 @app.get("/api/health")
-def get_health():
-    h = state.get("health", {})
+def health_check():
     return {
-        "status": state.get("system", {}).get("status", "unknown"),
-        "mode": state.get("system", {}).get("mode", "paper"),
-        "auto_enabled": state.get("system", {}).get("auto_enabled", False),
-        "scheduler": scheduler.get_status() if scheduler else {"running": False},
-        "last_error": h.get("last_error"),
-        "last_error_at": h.get("last_error_at"),
-        "health": h,
-        "uptime_ok": True
+        "status": "running",
+        "timestamp": datetime.utcnow().isoformat(),
+        "scheduler_running": scheduler.is_running if scheduler else False,
+    }
+
+@app.get("/api/debug/binance")
+def debug_binance():
+    if not orchestrator or not hasattr(orchestrator, "executor"):
+        return {"error": "No executor"}
+    ex = orchestrator.executor
+    status, data = ex._send_signed("GET", f"{ex.base_url}/api/v3/account")
+    balances = [b for b in data.get("balances", []) if float(b.get("free", 0)) + float(b.get("locked", 0)) > 0] if isinstance(data, dict) else []
+    return {
+        "mode": ex.mode,
+        "testnet": ex.testnet,
+        "base_url": ex.base_url,
+        "api_key_len": len(ex.api_key),
+        "api_key_masked": f"{ex.api_key[:6]}...{ex.api_key[-4:]}" if ex.api_key else "EMPTY",
+        "secret_key_len": len(ex.secret_key),
+        "time_offset": ex.time_offset,
+        "http_status": status,
+        "raw_response": data if not isinstance(data, dict) or "balances" not in data else f"Found {len(balances)} non-zero balances",
+        "non_zero_balances": balances[:10]
     }
 
 @app.get("/api/scan")
