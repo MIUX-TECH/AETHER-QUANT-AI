@@ -14,10 +14,19 @@ import json
 logger = logging.getLogger(__name__)
 
 SYMBOL_KEYWORDS = {
-    "BTCUSDT": ["bitcoin", "btc", "crypto", "cryptocurrency"],
-    "ETHUSDT": ["ethereum", "eth", "defi", "smart contract"],
+    "BTCUSDT": ["bitcoin", "btc", "satoshi", "crypto", "cryptocurrency"],
+    "ETHUSDT": ["ethereum", "eth", "ether", "vitalik", "defi"],
     "SOLUSDT": ["solana", "sol"],
     "XRPUSDT": ["ripple", "xrp"],
+    "BNBUSDT": ["binance", "bnb", "cz"],
+    "DOGEUSDT": ["doge", "dogecoin", "elon"],
+    "PEPEUSDT": ["pepe", "pepecoin", "frog"],
+    "SHIBUSDT": ["shib", "shiba", "shibainu"],
+    "TRXUSDT": ["tron", "trx", "justinsun"],
+    "BONKUSDT": ["bonk", "bonkcoin"],
+    "FLOKIUSDT": ["floki", "flokiinu"],
+    "NEARUSDT": ["near", "nearprotocol"],
+    "AVAXUSDT": ["avalanche", "avax"],
 }
 
 BULLISH_KEYWORDS = [
