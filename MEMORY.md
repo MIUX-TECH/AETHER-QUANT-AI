@@ -103,10 +103,12 @@ Sinyal masuk (*entry*) ditentukan oleh evaluasi 8 pilar kuantitatif di `engine/a
 
 ---
 
-## 🗺️ 4. ROADMAP PENYELARASAN (*ROLLBACK / ALIGNMENT GAPS*)
+## 🗺️ 4. ROADMAP PENYELARASAN (*ROLLBACK / ALIGNMENT GAPS*) — STATUS: COMPLETED & VERIFIED ✅
 
-Empat tugas teknis untuk menyelaraskan kode dengan Cetak Biru Asli:
-1. **[AI WIRING]**: Sambungkan `GroqAIClient` di `engine/ai/groq_client.py` ke dalam `_try_spot_entry()` dan `_try_futures_entry()` di `engine/trader.py`.
-2. **[BTC ACCUMULATOR]**: Tambahkan fungsi otomatis pembelian BTC Spot dari 70% realized profit di `_close_position()`.
-3. **[TP1 & RUNNER]**: Terapkan logika TP1 40% (BE+fee buffer 0.3%) dan 60% runner trailing stop adaptif per 3 rezim pasar.
-4. **[RISK FLAG RECOVERY]**: Tambahkan logika reset otomatis untuk `risk_off_active` dan `capital_preservation_mode` ketika ekuitas portofolio pulih.
+Semua pilar penyelarasan Cetak Biru Asli telah diimplementasikan dan diverifikasi secara empiris:
+1. **[AI WIRING]** ✅: `GroqAIClient` terhubung penuh ke `_try_spot_entry()` dan `_try_futures_entry()` di `engine/trader.py` dengan kebijakan *Fail-Closed*.
+2. **[BTC ACCUMULATOR]** ✅: Logika akumulasi otomatis BTC Spot (70% realized profit $\ge 5$ USDT dikonversi ke `BTCUSDT` Treasury Vault) aktif di `_close_position()`.
+3. **[TP1 & RUNNER]** ✅: TP1 40% (BE+fee buffer 0.3%) dengan kenaikan SL ke titik impas (*Breakeven*) dan 60% runner trailing stop adaptif aktif di `_execute_partial_tp()` & `portfolio_manager`.
+4. **[RISK FLAG RECOVERY]** ✅: Auto-recovery hysteresis untuk `risk_off_active` dan `capital_preservation_mode` aktif saat drawdown portofolio pulih $< 8\%$.
+5. **[RATE LIMIT & CLUSTER FAILOVER]** ✅: Endpoint public candle dialihkan ke `https://data-api.binance.vision`, multi-tier caching (4h/2h/30m/5m/1m), stagger 150ms antar-scan, dan failover rotasi 5 host cluster aktif.
+6. **[POSITION RECONSTRUCTION]** ✅: Sinkronisasi otomatis posisi dari Binance Simple Earn/Spot wallet balances (`LDBTC`, `LDETH`, `LDSOL`) dan `myTrades` history saat container restart.
