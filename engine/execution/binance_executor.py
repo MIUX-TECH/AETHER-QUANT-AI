@@ -517,8 +517,9 @@ class BinanceExecutor:
 
     def get_account_balances(self) -> Dict[str, Dict]:
         now = time.time()
-        if self._balance_cache is not None and (now - self._balance_cache_time) < self._cache_ttl:
-            return self._balance_cache
+        # Prevent 429/418 spam loop on failed requests
+        if (now - self._balance_cache_time) < self._cache_ttl:
+            return self._balance_cache or {}
 
         if not self.api_key or not self.secret_key:
             self.api_key = os.getenv("BINANCE_API_KEY", "").strip()
@@ -529,6 +530,8 @@ class BinanceExecutor:
 
         if self.api_key and self.secret_key:
             status, data = self._send_signed("GET", f"{self.base_url}/api/v3/account")
+            self._balance_cache_time = now  # Always update cache time
+
             if status == 200 and isinstance(data, dict):
                 res = {}
                 for b in data.get("balances", []):
@@ -538,7 +541,6 @@ class BinanceExecutor:
                     if total > 0.00000001:
                         res[b["asset"]] = {"free": free, "locked": locked, "total": total}
                 self._balance_cache = res
-                self._balance_cache_time = now
                 return res
             logger.error(f"get_account_balances failed ({status}): {data}")
 
@@ -548,12 +550,15 @@ class BinanceExecutor:
     def get_futures_account(self) -> Dict:
         """Fetch USD-M Futures account balances and margin with 6s caching."""
         now = time.time()
-        if self._futures_cache is not None and (now - self._futures_cache_time) < self._cache_ttl:
-            return self._futures_cache
+        # Ensure we don't spam if the previous request failed (429/418 loop prevention)
+        if (now - self._futures_cache_time) < self._cache_ttl:
+            return self._futures_cache or {}
+            
         status, data = self._send_signed("GET", f"{self.futures_url}/fapi/v2/account")
+        self._futures_cache_time = now  # Always update cache time to prevent spam
+        
         if status == 200 and isinstance(data, dict):
             self._futures_cache = data
-            self._futures_cache_time = now
             return data
         return self._futures_cache or {}
 
