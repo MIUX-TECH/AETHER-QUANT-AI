@@ -16,9 +16,7 @@ from typing import Optional
 
 import os, glob
 try:
-    for d in ["history", "memory", "reports", "state"]:
-        for f in glob.glob(f"{d}/*.json"):
-            os.remove(f)
+    pass # Removed destructive local json cleanup, enabling local failback
 except Exception:
     pass
 import secrets

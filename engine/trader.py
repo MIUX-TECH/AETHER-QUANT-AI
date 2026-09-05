@@ -389,8 +389,8 @@ class TradingOrchestrator:
                     "BTCUSDT", "BUY", "spot", order, sizing, signal
                 )
                 existing = self.state.get("positions", {}).get("spot", {}).get("BTCUSDT")
-                if existing and existing.get("status") == "active":
-                    # Merge into existing position (average up)
+                if existing and existing.get("status") in ["active", "held"]:
+                    # Merge into existing position (average down)
                     old_qty = existing.get("qty", 0)
                     old_entry = existing.get("entry_price", fill_price)
                     new_qty = old_qty + fill_qty
@@ -398,8 +398,18 @@ class TradingOrchestrator:
                     existing["qty"] = new_qty
                     existing["entry_price"] = round(new_entry, 4)
                     existing["position_usdt"] = round(new_qty * fill_price, 2)
+                    
+                    # VAULT RESTORATION: Buybacks are macro accumulation. Secure them.
+                    existing["role"] = "vault"
+                    existing["status"] = "held"
+                    existing["sl_price"] = 0  # Remove strict SL to prevent immediate invalidation on volatility
+                    existing["tp_price"] = 0
                     self.state["positions"]["spot"]["BTCUSDT"] = existing
                 else:
+                    position["role"] = "vault"
+                    position["status"] = "held"
+                    position["sl_price"] = 0
+                    position["tp_price"] = 0
                     self.state.setdefault("positions", {}).setdefault("spot", {})["BTCUSDT"] = position
 
                 self._log_decision(
@@ -591,7 +601,11 @@ class TradingOrchestrator:
             to_close = []
 
             for symbol, position in list(positions.items()):
-                if position.get("status") != "active":
+                if position.get("status") not in ["active", "held"]:
+                    continue
+                
+                # VAULT IMMUNITY: Do not apply daily SL/TP to Vault positions
+                if position.get("role") == "vault":
                     continue
 
                 # Get current price
@@ -712,6 +726,35 @@ class TradingOrchestrator:
             if btc_alloc_usdt >= 5.0 and hasattr(self.executor, "place_spot_market_buy"):
                 btc_order = self.executor.place_spot_market_buy("BTCUSDT", btc_alloc_usdt)
                 logger.info(f"🪙 AUTO BTC VAULT CONVERT from profit: {btc_order}")
+                if btc_order.get("status") == "FILLED":
+                    # Register this strictly as a Vault position (immune to daily SL/TP)
+                    vault_pos = self.state.setdefault("positions", {}).setdefault("spot", {}).get("BTCUSDT")
+                    fill_price = float(btc_order.get("fills", [{}])[0].get("price", 0)) if btc_order.get("fills") else 0
+                    if not fill_price:
+                        fill_price = current_price if "current_price" in locals() else price
+                    if vault_pos:
+                        # Merge with existing
+                        old_qty = vault_pos.get("qty", 0)
+                        new_qty = btc_alloc_usdt / fill_price
+                        vault_pos["qty"] = old_qty + new_qty
+                        vault_pos["position_usdt"] = vault_pos.get("position_usdt", 0) + btc_alloc_usdt
+                        vault_pos["role"] = "vault"
+                        vault_pos["sl_price"] = 0  # Remove any SL constraints
+                        vault_pos["tp_price"] = 0
+                    else:
+                        self.state["positions"]["spot"]["BTCUSDT"] = {
+                            "symbol": "BTCUSDT",
+                            "side": "BUY",
+                            "trade_type": "spot",
+                            "entry_price": fill_price,
+                            "qty": btc_alloc_usdt / fill_price,
+                            "position_usdt": btc_alloc_usdt,
+                            "role": "vault",
+                            "sl_price": 0,
+                            "tp_price": 0,
+                            "status": "held",
+                            "opened_at": __import__("datetime").datetime.utcnow().isoformat()
+                        }
 
         return closed
 
@@ -797,6 +840,13 @@ class TradingOrchestrator:
                 trail = spot_dict[sym].get("trailing_stop_pct", 0.025)
                 spot_dict[sym]["trailing_stop_price"] = round(curr_price * (1 - trail), 4)
                 spot_dict[sym].setdefault("status", "active")
+                
+                # VAULT RESTORATION: Always treat external BTC as Vault, not trade.
+                if sym == "BTCUSDT":
+                    spot_dict[sym]["role"] = "vault"
+                    spot_dict[sym]["status"] = "held"
+                    spot_dict[sym]["sl_price"] = 0
+                    spot_dict[sym]["tp_price"] = 0
                 continue
 
             # Only track meaningful positions (> $1.00)
@@ -822,14 +872,15 @@ class TradingOrchestrator:
                     "current_price": round(curr_price, 4),
                     "qty": tot_qty,
                     "position_usdt": round(val_usd, 2),
-                    "sl_price": round(entry_price * 0.98, 4),
-                    "tp_price": round(entry_price * 1.035, 4),
+                    "sl_price": round(entry_price * 0.98, 4) if sym != "BTCUSDT" else 0,
+                    "tp_price": round(entry_price * 1.035, 4) if sym != "BTCUSDT" else 0,
                     "trailing_stop_pct": 0.025,
-                    "trailing_stop_price": round(curr_price * 0.975, 4),
+                    "trailing_stop_price": round(curr_price * 0.975, 4) if sym != "BTCUSDT" else 0,
                     "unrealized_pnl": round(pnl_usd, 4),
                     "unrealized_pnl_pct": round(pnl_pct, 2),
-                    "status": "active",
-                    "opened_at": datetime.utcnow().isoformat(),
+                    "status": "held" if sym == "BTCUSDT" else "active",
+                    "role": "vault" if sym == "BTCUSDT" else "trade",
+                    "opened_at": __import__("datetime").datetime.utcnow().isoformat(),
                     "regime": self.state.get("scanner", {}).get("market_regime", "trending_up"),
                     "reconstructed": True
                 }

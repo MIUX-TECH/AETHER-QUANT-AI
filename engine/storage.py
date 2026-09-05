@@ -303,13 +303,16 @@ def load_state() -> Dict:
         return remote
 
     # 2. Fallback to local storage
+    logger.warning("Upstash returned empty or failed. Falling back to local runtime_state.json")
     local = read_json(DIRS["state"] / "runtime_state.json")
     if local:
+        logger.info("Successfully loaded state from local fallback.")
         return local
 
     if remote:
         return remote
 
+    logger.warning("No valid state found in Upstash or Local. Initializing fresh state.")
     return {}
 
 
