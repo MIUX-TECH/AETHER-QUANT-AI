@@ -295,7 +295,32 @@ def save_config(name: str, data: Dict) -> bool:
 
 
 def load_state() -> Dict:
-    # 1. Try Upstash Redis remote persistence first if configured
+    # Phase 4 (Stateless Final): 1. Native Redis Reconstruction
+    try:
+        from engine.redis_client import RedisManager
+        redis_client = RedisManager()
+        if redis_client.is_connected:
+            portfolio_status = redis_client.hget_all("bot:portfolio:status")
+            portfolio_risk = redis_client.hget_all("bot:portfolio:risk")
+            positions_spot = redis_client.hget_all("bot:positions:spot")
+            positions_futures = redis_client.hget_all("bot:positions:futures")
+            
+            if portfolio_status or positions_spot or positions_futures:
+                logger.info("Loaded runtime_state 100% statelessly from Native Redis Hashes")
+                # Reconstruct full state object
+                return {
+                    "portfolio": {**portfolio_status},
+                    "risk": {**portfolio_risk},
+                    "positions": {
+                        "spot": positions_spot,
+                        "futures": positions_futures
+                    },
+                    "system": {"kill_switch": False, "safe_mode": False} # Defaults
+                }
+    except Exception as e:
+        logger.error(f"Failed to load stateless Native Redis state: {e}")
+
+    # 2. Try Upstash Redis REST remote persistence if configured
     remote = _upstash_get("runtime_state")
     if remote and isinstance(remote, dict) and (remote.get("portfolio") or remote.get("positions")):
         logger.info("Loaded runtime_state from external Upstash Redis cloud persistence")
@@ -320,10 +345,38 @@ def save_state(data: Dict) -> bool:
     ok = write_json(DIRS["state"] / "runtime_state.json", data, backup=True)
     safe_data = {k: v for k, v in data.items() if k != "credentials"}
     _upstash_set("runtime_state", safe_data)
+    
+    # Phase 2 (Shadow Sync): Push critical data to Native Redis Hashes
+    try:
+        from engine.redis_client import RedisManager
+        redis_client = RedisManager()
+        if redis_client.is_connected:
+            positions = data.get("positions", {})
+            spot = positions.get("spot", {})
+            futures = positions.get("futures", {})
+            if spot:
+                redis_client.hset_dict("bot:positions:spot", spot)
+            if futures:
+                redis_client.hset_dict("bot:positions:futures", futures)
+    except Exception as e:
+        logger.error(f"Shadow Sync to Native Redis failed: {e}")
+        
     return ok
 
 
 def load_memory(name: str) -> Dict:
+    # Phase 3: Try fetching from Native Redis Hash first
+    try:
+        from engine.redis_client import RedisManager
+        redis_client = RedisManager()
+        if redis_client.is_connected:
+            native_data = redis_client.hget_all(f"bot:ai:{name}")
+            if native_data:
+                logger.info(f"Loaded memory '{name}' from Native Redis Hash (Phase 3)")
+                return native_data
+    except Exception as e:
+        logger.warning(f"Native Redis Hash fetch failed for {name}: {e}")
+
     remote = _upstash_get(f"memory_{name}")
     if remote and isinstance(remote, dict):
         logger.info(f"Loaded memory '{name}' from external Upstash Redis cloud persistence")
@@ -337,6 +390,16 @@ def load_memory(name: str) -> Dict:
 def save_memory(name: str, data: Dict) -> bool:
     ok = write_json(DIRS["memory"] / f"{name}.json", data, backup=True)
     _upstash_set(f"memory_{name}", data)
+    
+    # Phase 2/3 (Shadow Sync): Push Adaptive Weights/Memory to Redis Hash
+    try:
+        from engine.redis_client import RedisManager
+        redis_client = RedisManager()
+        if redis_client.is_connected:
+            redis_client.hset_dict(f"bot:ai:{name}", data)
+    except Exception as e:
+        logger.error(f"Shadow Sync to Native Redis Memory failed: {e}")
+        
     return ok
 
 

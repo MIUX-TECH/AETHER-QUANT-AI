@@ -197,43 +197,56 @@ class TradingOrchestrator:
         if self.state.get("system", {}).get("kill_switch"):
             return {"status": "kill_switch_active"}
 
-        mode = "live"
-        executed = []
-        exits = []
+        # Phase 4 (Stateless Final): Distributed Lock
+        from engine.redis_client import RedisManager
+        redis_client = RedisManager()
+        if redis_client.is_connected:
+            if not redis_client.acquire_lock("bot:lock:execution_cycle", 50):
+                logger.warning("Execution cycle locked by another instance. Skipping.")
+                return {"status": "locked", "message": "Another bot instance is executing"}
 
-        # --- STEP 1: Monitor existing positions ---
-        exits = self._monitor_positions()
+        try:
+            mode = "live"
+            executed = []
+            exits = []
 
-        # --- STEP 1.5: Macro strategy check (every 4 hours) ---
-        macro_result = self._maybe_run_macro_strategies()
+            # --- STEP 1: Monitor existing positions ---
+            exits = self._monitor_positions()
 
-        # --- STEP 2: Check entry signals (only if we have fresh scan) ---
-        if not self._scan_results:
-            return {"status": "no_scan_data", "exits": exits, "entries": []}
+            # --- STEP 1.5: Macro strategy check (every 4 hours) ---
+            macro_result = self._maybe_run_macro_strategies()
 
-        if True:
-            for symbol, scan in self._scan_results.items():
-                score = scan.get("score", {})
-                signal = score.get("signal", "WAIT")
-                confidence = score.get("confidence", 0)
+            # --- STEP 2: Check entry signals (only if we have fresh scan) ---
+            if not self._scan_results:
+                return {"status": "no_scan_data", "exits": exits, "entries": []}
 
-                if signal not in ["STRONG_BUY", "BUY", "SHORT"]:
-                    self._log_decision(symbol, "skip", score, "Signal below action threshold")
-                    continue
+            if True:
+                for symbol, scan in self._scan_results.items():
+                    score = scan.get("score", {})
+                    signal = score.get("signal", "WAIT")
+                    confidence = score.get("confidence", 0)
 
-                # Spot entries
-                if signal in ["STRONG_BUY", "BUY"]:
-                    result = self._try_spot_entry(symbol, scan, score)
-                    if result.get("executed"):
-                        executed.append(result)
+                    if signal not in ["STRONG_BUY", "BUY", "SHORT"]:
+                        self._log_decision(symbol, "skip", score, "Signal below action threshold")
+                        continue
 
-                # Futures entries (SHORT or high-confidence BUY)
-                if signal == "SHORT" or (signal == "STRONG_BUY" and confidence > 0.82):
-                    result = self._try_futures_entry(symbol, scan, score)
-                    if result.get("executed"):
-                        executed.append(result)
+                    # Spot entries
+                    if signal in ["STRONG_BUY", "BUY"]:
+                        result = self._try_spot_entry(symbol, scan, score)
+                        if result.get("executed"):
+                            executed.append(result)
 
-        return {"status": "ok", "exits": exits, "entries": executed, "macro": macro_result}
+                    # Futures entries (SHORT or high-confidence BUY)
+                    if signal == "SHORT" or (signal == "STRONG_BUY" and confidence > 0.82):
+                        result = self._try_futures_entry(symbol, scan, score)
+                        if result.get("executed"):
+                            executed.append(result)
+
+                return {"status": "ok", "exits": exits, "entries": executed, "macro": macro_result}
+                
+        finally:
+            if redis_client.is_connected:
+                redis_client.release_lock("bot:lock:execution_cycle")
 
     def _maybe_run_macro_strategies(self) -> Optional[Dict]:
         """Run macro TP and buyback checks every 4 hours."""
@@ -709,6 +722,13 @@ class TradingOrchestrator:
 
         # Remove from active positions
         self.state["positions"][trade_type].pop(symbol, None)
+        
+        # Phase 2 (Shadow Sync): Delete from Redis Hash
+        try:
+            from engine.redis_client import RedisManager
+            RedisManager().hdel(f"bot:positions:{trade_type}", symbol)
+        except Exception:
+            pass
 
         # Record to history
         self.memory_service.record_trade(closed)
@@ -989,7 +1009,34 @@ class TradingOrchestrator:
         )
 
     def _load_recent_trades(self, days: int = 7) -> List[Dict]:
+        """
+        Phase 3: Redis Native Smart Sampling.
+        Directly fetches the 50 most recent trades from Redis. No local file reading.
+        If Redis is unreachable, falls back to a limited local read to preserve AI token limits.
+        """
+        from engine.redis_client import RedisManager
+        redis_client = RedisManager()
+        
+        if redis_client.is_connected:
+            # Smart Sampling: Get the latest 50 trades from the top of the list
+            trades = redis_client.lrange_json("bot:history:trades", 0, 49)
+            if trades:
+                # Filter down to essential fields to aggressively preserve AI tokens
+                filtered = []
+                for t in trades:
+                    filtered.append({
+                        "symbol": t.get("symbol"),
+                        "type": t.get("trade_type", "spot"),
+                        "pnl_pct": t.get("pnl_pct", 0),
+                        "result": t.get("result", "unknown"),
+                        "hold": t.get("hold_duration", ""),
+                        "strategy": t.get("strategy", "")
+                    })
+                return filtered
+                
+        # Fallback if Redis is offline (still filtered to save tokens)
         from engine.storage import get_history_path, read_json
+        from datetime import timedelta
         trades = []
         for d in range(days):
             dt = datetime.utcnow() - timedelta(days=d)
@@ -998,4 +1045,18 @@ class TradingOrchestrator:
                 data = read_json(path, default=[])
                 if isinstance(data, list):
                     trades.extend(data)
-        return trades
+                    
+        # Sort by most recent and slice
+        trades = sorted(trades, key=lambda x: x.get("closed_at", ""), reverse=True)[:50]
+        
+        filtered = []
+        for t in trades:
+            filtered.append({
+                "symbol": t.get("symbol"),
+                "type": t.get("trade_type", "spot"),
+                "pnl_pct": t.get("pnl_pct", 0),
+                "result": t.get("result", "unknown"),
+                "hold": t.get("hold_duration", ""),
+                "strategy": t.get("strategy", "")
+            })
+        return filtered

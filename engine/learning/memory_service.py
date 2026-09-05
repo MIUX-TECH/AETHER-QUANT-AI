@@ -65,6 +65,11 @@ class MemoryService:
         # Monthly history file
         path = get_history_path("trades")
         success = append_to_list_file(path, trade)
+        
+        # Phase 2 (Shadow Sync): Push to Redis List
+        from engine.redis_client import RedisManager
+        RedisManager().lpush_json("bot:history:trades", trade, max_len=5000)
+        
         if success and trade_id:
             self._seen_trade_ids.append(trade_id)
             self._seen_trade_set.add(trade_id)
@@ -77,6 +82,11 @@ class MemoryService:
     def record_decision(self, decision: Dict) -> bool:
         """Record an AI decision event (entry, exit, skip, hold)."""
         decision["recorded_at"] = datetime.utcnow().isoformat()
+        
+        # Phase 2/3 (Shadow Sync): Push to Redis List
+        from engine.redis_client import RedisManager
+        RedisManager().lpush_json("bot:history:decisions", decision, max_len=1000)
+        
         path = get_history_path("decision_log")
         return append_to_list_file(path, decision)
 
@@ -320,7 +330,20 @@ class MemoryService:
         return lessons
 
     def _load_recent_trades(self, months: int = 3) -> List[Dict]:
-        """Load trades from last N months."""
+        """
+        Phase 3: Smart Sampling via Redis.
+        Load trades for AI analysis without blowing up token limits.
+        Instead of loading N months of bulk data, we fetch the 100 most recent trades.
+        """
+        from engine.redis_client import RedisManager
+        redis_client = RedisManager()
+        
+        if redis_client.is_connected:
+            trades = redis_client.lrange_json("bot:history:trades", 0, 99)
+            if trades:
+                return trades
+                
+        # Fallback to local files
         from datetime import date
         trades = []
         now = datetime.utcnow()
@@ -331,9 +354,19 @@ class MemoryService:
                 data = read_json(path, default=[])
                 if isinstance(data, list):
                     trades.extend(data)
+                    
+        # Sort and cap the fallback to prevent token overflow
+        trades = sorted(trades, key=lambda x: x.get("closed_at", ""), reverse=True)[:100]
         return trades
 
     def _count_total_trades(self) -> int:
+        from engine.redis_client import RedisManager
+        redis_client = RedisManager()
+        if redis_client.is_connected:
+            try:
+                return redis_client.client.llen("bot:history:trades")
+            except Exception:
+                pass
         trades = self._load_recent_trades(months=12)
         return len(trades)
 

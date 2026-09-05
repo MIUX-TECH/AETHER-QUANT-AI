@@ -51,10 +51,28 @@ class RiskManager:
                 if datetime.utcnow() < cd_dt:
                     remaining = (cd_dt - datetime.utcnow()).seconds // 60
                     return False, f"Cooldown active — {remaining}m remaining"
+                else:
+                    # Cooldown Expired (Escape Trap Fix)
+                    # We clear it so the bot doesn't get trapped in a perpetual cooldown loop on the next loss
+                    risk_state["cooldown_until"] = None
+                    risk_state["loss_streak"] = 0
+                    # Phase 2 (Shadow Sync): 
+                    from engine.redis_client import RedisManager
+                    redis_client = RedisManager()
+                    redis_client.hdel("bot:portfolio:risk", "cooldown_until")
+                    redis_client.hset_field("bot:portfolio:risk", "loss_streak", 0)
             except Exception:
                 pass
 
-        # Daily loss limit
+        # Daily loss limit & Reset Logic (Kill-Switch Fix)
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        if risk_state.get("last_loss_date", "") != today_str:
+            risk_state["daily_loss_pct"] = 0.0
+            risk_state["last_loss_date"] = today_str
+            # Phase 2 (Shadow Sync): Push reset state
+            from engine.redis_client import RedisManager
+            RedisManager().hset_dict("bot:portfolio:risk", {"daily_loss_pct": 0.0, "last_loss_date": today_str})
+
         daily_loss = risk_state.get("daily_loss_pct", 0)
         max_daily = self.risk_cfg.get("max_daily_loss_pct", 0.05)
         if daily_loss >= max_daily:
@@ -161,12 +179,28 @@ class RiskManager:
         risk_state = state.get("risk", {})
         pnl_pct = trade_result.get("pnl_pct", 0)
 
-        # Daily loss tracking
+        # Daily loss tracking & Date Validation
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        if risk_state.get("last_loss_date", "") != today_str:
+            risk_state["daily_loss_pct"] = 0.0
+            risk_state["last_loss_date"] = today_str
+            
         if pnl_pct < 0:
             risk_state["daily_loss_pct"] = risk_state.get("daily_loss_pct", 0) + abs(pnl_pct)
             risk_state["loss_streak"] = risk_state.get("loss_streak", 0) + 1
         else:
             risk_state["loss_streak"] = 0
+            
+        # Phase 2 (Shadow Sync): Push these changes to Redis
+        from engine.redis_client import RedisManager
+        redis_client = RedisManager()
+        redis_client.hset_dict("bot:portfolio:risk", {
+            "daily_loss_pct": risk_state["daily_loss_pct"],
+            "last_loss_date": risk_state.get("last_loss_date", ""),
+            "loss_streak": risk_state["loss_streak"]
+        })
+        if "cooldown_until" in risk_state and risk_state["cooldown_until"] is not None:
+            redis_client.hset_field("bot:portfolio:risk", "cooldown_until", risk_state["cooldown_until"])
 
         # Cooldown after loss streak
         streak = risk_state.get("loss_streak", 0)

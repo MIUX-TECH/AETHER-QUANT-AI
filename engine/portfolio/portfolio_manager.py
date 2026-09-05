@@ -18,6 +18,43 @@ class PortfolioManager:
         self.port_cfg = config.get("portfolio", {})
         self.risk_cfg = config.get("risk", {})
 
+    def update_portfolio_balances(self, wallet_balances: Dict) -> None:
+        """
+        Update portfolio equity based on wallet balances and track High Watermark (Peak Equity)
+        and drawdown percentages. This is Phase 1 preparation for the Redis Native Migration,
+        ensuring the math is flawless before we push these values to the bot:portfolio:status hash.
+        """
+        total_usd = wallet_balances.get("total_equity_usd", 0)
+        if total_usd <= 0:
+            return
+            
+        portfolio = self.state.setdefault("portfolio", {})
+        portfolio["total_equity"] = total_usd
+        portfolio["spot_equity"] = wallet_balances.get("spot_usd", total_usd)
+        
+        # Track Peak Equity and Compute Drawdown
+        current_peak = portfolio.get("peak_equity", 0.0)
+        
+        if total_usd > current_peak:
+            # New all-time high
+            portfolio["peak_equity"] = total_usd
+            portfolio["drawdown_pct"] = 0.0
+        elif current_peak > 0:
+            # Calculate current drawdown against the high watermark
+            portfolio["drawdown_pct"] = (current_peak - total_usd) / current_peak
+        else:
+            portfolio["drawdown_pct"] = 0.0
+            
+        # Phase 2 (Shadow Sync): Push to Redis
+        from engine.redis_client import RedisManager
+        redis_client = RedisManager()
+        redis_client.hset_dict("bot:portfolio:status", {
+            "total_equity": total_usd, 
+            "spot_equity": portfolio["spot_equity"], 
+            "peak_equity": portfolio["peak_equity"]
+        })
+        redis_client.hset_field("bot:portfolio:risk", "drawdown_pct", portfolio["drawdown_pct"])
+
     def get_allocations(self) -> Dict:
         """Calculate target allocations based on config and market conditions."""
         total = self.state["portfolio"]["total_equity"]
