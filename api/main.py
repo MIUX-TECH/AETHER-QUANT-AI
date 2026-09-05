@@ -607,7 +607,7 @@ def get_wallet(verified: bool = Depends(verify_master_token)):
         pass
 
     res_wallet = {
-        "mode": orchestrator.executor.mode,
+        "mode": getattr(orchestrator.executor, "mode", "live"),
         "total_equity_usd": final_total,
         "spot_usd": round(spot_usd, 2),
         "earn_usd": round(earn_usd, 2),
