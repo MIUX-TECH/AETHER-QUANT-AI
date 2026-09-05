@@ -17,7 +17,7 @@ BINANCE_TICKER_URLS = [
     "https://api1.binance.com/api/v3/ticker/price",
     "https://api2.binance.com/api/v3/ticker/price",
     "https://api3.binance.com/api/v3/ticker/price",
-    "https://data-api.binance.vision/api/v3/ticker/price",
+    "https://api1.binance.com/api/v3/ticker/price",
 ]
 
 

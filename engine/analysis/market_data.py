@@ -16,8 +16,8 @@ from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-BINANCE_BASE = "https://data-api.binance.vision"
-BINANCE_TESTNET = "https://data-api.binance.vision"
+BINANCE_BASE = "https://api1.binance.com"
+BINANCE_TESTNET = "https://testnet.binance.vision"
 FUTURES_BASE = "https://fapi.binance.com"
 FUTURES_TESTNET = "https://testnet.binancefuture.com"
 
@@ -56,7 +56,7 @@ class MarketDataService:
         self.secret_key = secret_key
         self.testnet = testnet
         self.mode = mode
-        self.base_url = BINANCE_TESTNET if testnet else "https://data-api.binance.vision"
+        self.base_url = BINANCE_TESTNET if testnet else "https://api1.binance.com"
         self.futures_url = FUTURES_TESTNET if testnet else FUTURES_BASE
         self.session = requests.Session()
         self.session.headers.update({
@@ -107,10 +107,10 @@ class MarketDataService:
             return None
 
         endpoints = [
-            "https://data-api.binance.vision",
             "https://api1.binance.com",
             "https://api2.binance.com",
             "https://api3.binance.com",
+            "https://api4.binance.com",
             "https://api.binance.com"
         ]
         path = url.split(".com")[-1].split(".vision")[-1]
