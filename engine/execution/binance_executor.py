@@ -56,6 +56,7 @@ class BinanceExecutor:
         self.secret_key = secret_key
         self.base_url = BINANCE_BASE
         self.futures_url = FUTURES_BASE
+        self.testnet = False
         self.session = requests.Session()
         self.session.headers.update({"X-MBX-APIKEY": api_key})
         self.max_retries = 3
