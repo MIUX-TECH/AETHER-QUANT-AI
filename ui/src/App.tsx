@@ -78,9 +78,9 @@ export default function App() {
   const currentMode = system?.mode || wallet?.mode || 'live'
 
   // BTC price live from assets
-  const btcPrice = Number(wallet?.assets?.find((a: any) => a.asset === 'BTC' || a.underlying === 'BTC')?.price || 81500)
-  const ethPrice = Number(wallet?.assets?.find((a: any) => a.asset === 'ETH' || a.underlying === 'ETH')?.price || 2850)
-  const solPrice = Number(wallet?.assets?.find((a: any) => a.asset === 'SOL' || a.underlying === 'SOL')?.price || 142)
+  const btcPrice = Number(wallet?.assets?.find((a: any) => a.asset === 'BTC' || a.underlying === 'BTC')?.price || 0)
+  const ethPrice = Number(wallet?.assets?.find((a: any) => a.asset === 'ETH' || a.underlying === 'ETH')?.price || 0)
+  const solPrice = Number(wallet?.assets?.find((a: any) => a.asset === 'SOL' || a.underlying === 'SOL')?.price || 0)
 
   return (
     <div className="app-shell">

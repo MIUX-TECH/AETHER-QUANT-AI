@@ -1,6 +1,6 @@
 {
   "version": "1.0",
-  "updated_at": "2026-07-04T09:54:10.572762",
+  "updated_at": "2026-09-04T02:10:15.932250",
   "pattern_library": {
     "winning_patterns": [],
     "losing_patterns": [],
@@ -15,38 +15,32 @@
       "regime_history": [],
       "last_10_trades": [
         {
-          "result": "loss",
-          "pnl_pct": -0.092,
+          "result": "win",
+          "pnl_pct": 23.166,
           "strategy": "rotational",
-          "closed_at": "2026-07-03T21:30:24.517540"
+          "closed_at": "2026-09-02T22:13:05.423446"
         },
         {
-          "result": "loss",
-          "pnl_pct": -0.092,
+          "result": "win",
+          "pnl_pct": 23.166,
           "strategy": "rotational",
-          "closed_at": "2026-07-03T21:30:24.517540"
+          "closed_at": "2026-09-02T22:13:05.423446"
         },
         {
-          "result": "loss",
-          "pnl_pct": -0.092,
+          "result": "win",
+          "pnl_pct": 23.166,
           "strategy": "rotational",
-          "closed_at": "2026-07-03T21:30:24.517540"
+          "closed_at": "2026-09-02T22:13:05.423446"
         },
         {
-          "result": "loss",
-          "pnl_pct": -0.092,
+          "result": "win",
+          "pnl_pct": 23.166,
           "strategy": "rotational",
-          "closed_at": "2026-07-03T21:30:24.517540"
-        },
-        {
-          "result": "loss",
-          "pnl_pct": -0.092,
-          "strategy": "rotational",
-          "closed_at": "2026-07-03T21:30:24.517540"
+          "closed_at": "2026-09-02T22:13:05.423446"
         }
       ],
-      "win_rate": 0.0,
-      "trade_count": 5
+      "win_rate": 1.0,
+      "trade_count": 4
     },
     "ETHUSDT": {
       "avg_daily_range_pct": 0.04,
@@ -68,81 +62,127 @@
       "avg_daily_range_pct": 0.05,
       "avg_volatility": 0.045,
       "best_timeframe": "4h",
-      "best_strategy": "pullback",
+      "best_strategy": "breakout",
       "regime_history": [],
-      "last_10_trades": []
+      "last_10_trades": [
+        {
+          "result": "win",
+          "pnl_pct": 18.23,
+          "strategy": "breakout",
+          "closed_at": "2026-09-02T22:13:05.427159"
+        },
+        {
+          "result": "win",
+          "pnl_pct": 18.23,
+          "strategy": "breakout",
+          "closed_at": "2026-09-02T22:13:05.427159"
+        },
+        {
+          "result": "win",
+          "pnl_pct": 18.23,
+          "strategy": "breakout",
+          "closed_at": "2026-09-02T22:13:05.427159"
+        },
+        {
+          "result": "win",
+          "pnl_pct": 18.23,
+          "strategy": "breakout",
+          "closed_at": "2026-09-02T22:13:05.427159"
+        }
+      ],
+      "win_rate": 1.0,
+      "trade_count": 4
     },
     "TRXUSDT": {
       "win_rate": 1.0,
-      "trade_count": 5,
+      "trade_count": 4,
       "best_strategy": "swing",
       "last_10_trades": [
         {
           "result": "win",
-          "pnl_pct": 0.664,
+          "pnl_pct": 0.788,
           "strategy": "swing",
-          "closed_at": "2026-07-04T00:14:16.397333"
+          "closed_at": "2026-09-02T22:13:05.442576"
         },
         {
           "result": "win",
-          "pnl_pct": 0.664,
+          "pnl_pct": 0.788,
           "strategy": "swing",
-          "closed_at": "2026-07-04T00:14:16.397333"
+          "closed_at": "2026-09-02T22:13:05.442576"
         },
         {
           "result": "win",
-          "pnl_pct": 0.664,
+          "pnl_pct": 0.788,
           "strategy": "swing",
-          "closed_at": "2026-07-04T00:14:16.397333"
+          "closed_at": "2026-09-02T22:13:05.442576"
         },
         {
           "result": "win",
-          "pnl_pct": 0.664,
+          "pnl_pct": 0.788,
           "strategy": "swing",
-          "closed_at": "2026-07-04T00:14:16.397333"
-        },
-        {
-          "result": "win",
-          "pnl_pct": 0.664,
-          "strategy": "swing",
-          "closed_at": "2026-07-04T00:14:16.397333"
+          "closed_at": "2026-09-02T22:13:05.442576"
         }
       ]
     },
     "SHIBUSDT": {
-      "win_rate": 0.0,
-      "trade_count": 5,
+      "win_rate": 1.0,
+      "trade_count": 4,
       "best_strategy": "breakout",
       "last_10_trades": [
         {
-          "result": "loss",
-          "pnl_pct": -0.05,
+          "result": "win",
+          "pnl_pct": 19.441,
           "strategy": "breakout",
-          "closed_at": "2026-07-04T05:25:16.824074"
+          "closed_at": "2026-09-02T22:13:05.432385"
         },
         {
-          "result": "loss",
-          "pnl_pct": -0.05,
+          "result": "win",
+          "pnl_pct": 19.441,
           "strategy": "breakout",
-          "closed_at": "2026-07-04T05:25:16.824074"
+          "closed_at": "2026-09-02T22:13:05.432385"
         },
         {
-          "result": "loss",
-          "pnl_pct": -0.05,
+          "result": "win",
+          "pnl_pct": 19.441,
           "strategy": "breakout",
-          "closed_at": "2026-07-04T05:25:16.824074"
+          "closed_at": "2026-09-02T22:13:05.432385"
         },
         {
-          "result": "loss",
-          "pnl_pct": -0.05,
+          "result": "win",
+          "pnl_pct": 19.441,
           "strategy": "breakout",
-          "closed_at": "2026-07-04T05:25:16.824074"
+          "closed_at": "2026-09-02T22:13:05.432385"
+        }
+      ]
+    },
+    "BNBUSDT": {
+      "win_rate": 1.0,
+      "trade_count": 4,
+      "best_strategy": "swing",
+      "last_10_trades": [
+        {
+          "result": "win",
+          "pnl_pct": 19.427,
+          "strategy": "swing",
+          "closed_at": "2026-09-02T22:13:05.436756"
         },
         {
-          "result": "loss",
-          "pnl_pct": -0.05,
-          "strategy": "breakout",
-          "closed_at": "2026-07-04T05:25:16.824074"
+          "result": "win",
+          "pnl_pct": 19.427,
+          "strategy": "swing",
+          "closed_at": "2026-09-02T22:13:05.436756"
+        },
+        {
+          "result": "win",
+          "pnl_pct": 19.427,
+          "strategy": "swing",
+          "closed_at": "2026-09-02T22:13:05.436756"
+        },
+        {
+          "result": "win",
+          "pnl_pct": 19.427,
+          "strategy": "swing",
+          "closed_at": "2026-09-02T22:13:05.436756"
         }
       ]
     }

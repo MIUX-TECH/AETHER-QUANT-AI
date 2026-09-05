@@ -38,7 +38,13 @@ class TradingOrchestrator:
         self.memory_service = memory_service
         self.report_service = report_service
         self.config = config
-        self.state = state
+        self.state = state if isinstance(state, dict) else {}
+        # Ensure required state sub-dictionaries exist to prevent KeyError crashes
+        self.state.setdefault("system", {})
+        self.state.setdefault("scanner", {})
+        self.state.setdefault("portfolio", {})
+        self.state.setdefault("positions", {"spot": {}, "futures": {}})
+        self.state.setdefault("risk", {})
         self.ai_client = ai_client
         self.trade_logger = logging.getLogger("trade")
         self.decision_logger = logging.getLogger("decision")
@@ -65,7 +71,12 @@ class TradingOrchestrator:
 
         # Get sentiment
         try:
-            sentiment = self.news_service.get_sentiment_scores(symbols)
+            sentiment_data = self.news_service.get_sentiment_scores(symbols)
+            # Extract float scores for the scanner; keep full metadata
+            sentiment = {s: d["score"] for s, d in sentiment_data.items()}
+            unavailable = [s for s, d in sentiment_data.items() if not d.get("data_available")]
+            if unavailable:
+                logger.warning(f"Sentiment data unavailable for: {', '.join(unavailable)}")
         except Exception as e:
             logger.warning(f"Sentiment fetch failed: {e}")
             sentiment = {s: 0.5 for s in symbols}
@@ -400,8 +411,12 @@ class TradingOrchestrator:
             )
 
         if order.get("status") != "FILLED":
-            logger.error(f"Close order failed for {symbol}: {order}")
-            return None
+            if hasattr(self.executor, "emergency_close_position") and reason in ["stop_loss", "trailing_stop"]:
+                logger.warning(f"Normal close failed for {symbol}, attempting emergency close")
+                order = self.executor.emergency_close_position(symbol, qty, close_side, trade_type)
+            if order.get("status") != "FILLED" and not (order.get("orderId") and order.get("executedQty")):
+                logger.error(f"Close order failed for {symbol}: {order}")
+                return None
 
         # Build closed trade record
         closed = self.portfolio_manager.close_position(position, price, reason)
@@ -492,9 +507,10 @@ class TradingOrchestrator:
         deficit = round(futures_target - futures_current, 2)
         surplus = round(futures_current - (futures_target * 1.5), 2)
 
+        min_transfer = max(5.0, self.config.get("portfolio", {}).get("min_rebalance_transfer_usdt", 5.0))
+
         # CASE 1: Futures Deficit (Transfer from Spot -> Futures)
-        if deficit >= 1.0:
-            # Check if Spot free USDT is available and leaves at least $5.00 for spot trading
+        if deficit >= min_transfer:
             if spot_free_usdt >= deficit and (spot_free_usdt - deficit) >= 5.0:
                 logger.info(f"⚖️ EXECUTING AUTO-REBALANCE: Transferring ${deficit} USDT from Spot -> Futures")
                 transfer_res = self.executor.execute_futures_transfer(deficit, "spot_to_futures")
@@ -506,12 +522,15 @@ class TradingOrchestrator:
                     "transfer_result": transfer_res
                 }
             else:
-                reason = f"Pending transfer: Spot Free USDT (${spot_free_usdt:.2f}) insufficient for ${deficit:.2f} transfer (needs $5.00 min spot reserve). Waiting for closed trades/deposits."
+                if spot_free_usdt < 0.01:
+                    logger.debug(f"Rebalance skipped: Spot USDT is zero, waiting for realized profits")
+                    return {"status": "skipped_zero_balance", "reason": "Spot USDT is zero — will rebalance after next profitable trade close"}
+                reason = f"Pending transfer: Spot Free USDT (${spot_free_usdt:.2f}) insufficient for ${deficit:.2f} transfer (min ${min_transfer:.0f})"
                 logger.info(f"⏳ REBALANCE PENDING: {reason}")
                 return {"status": "pending_insufficient_spot_usdt", "reason": reason, "spot_free": spot_free_usdt, "needed": deficit}
 
         # CASE 2: Futures Surplus (Sweep back from Futures -> Spot & 70% BTC Vault convert)
-        elif surplus >= 1.0:
+        elif surplus >= min_transfer:
             logger.info(f"⚖️ EXECUTING AUTO-SWEEP: Transferring ${surplus} USDT surplus from Futures -> Spot")
             transfer_res = self.executor.execute_futures_transfer(surplus, "futures_to_spot")
             

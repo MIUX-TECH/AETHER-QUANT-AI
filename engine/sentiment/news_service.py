@@ -49,23 +49,35 @@ class NewsService:
         self._cache: Dict = {}
         self._cache_ttl = 300  # 5 min
 
-    def get_sentiment_scores(self, symbols: List[str]) -> Dict[str, float]:
+    def get_sentiment_scores(self, symbols: List[str]) -> Dict[str, Dict]:
         """
-        Return sentiment score per symbol (0.0 = very bearish, 1.0 = very bullish, 0.5 = neutral).
+        Return sentiment result per symbol. Each value is a dict:
+        {score, sentiment, data_available, warning, source_count}
         """
-        scores = {s: 0.5 for s in symbols}
+        fallback_warning = "Sentiment API unavailable — using neutral fallback"
         try:
             all_news = self._fetch_all_news()
             if not all_news:
-                return scores
+                logger.warning("No news data from any source — returning neutral fallback for all symbols")
+                return {s: self._neutral_fallback(fallback_warning) for s in symbols}
+
+            api_sourced = any(a.get("source") != "synthetic" for a in all_news)
+            results = {}
             for symbol in symbols:
                 keywords = SYMBOL_KEYWORDS.get(symbol, [symbol.replace("USDT", "").lower()])
                 relevant = [n for n in all_news if self._is_relevant(n, keywords)]
                 if relevant:
-                    scores[symbol] = self._score_articles(relevant)
+                    score = self._score_articles(relevant)
+                    results[symbol] = self._build_result(score, len(relevant), api_sourced)
+                else:
+                    if api_sourced:
+                        results[symbol] = self._build_result(0.5, 0, True)
+                    else:
+                        results[symbol] = self._neutral_fallback(fallback_warning)
+            return results
         except Exception as e:
             logger.warning(f"Sentiment scoring failed: {e}")
-        return scores
+            return {s: self._neutral_fallback(fallback_warning) for s in symbols}
 
     def get_news_for_symbol(self, symbol: str, limit: int = 10) -> List[Dict]:
         """Get recent news articles for a symbol."""
@@ -82,12 +94,15 @@ class NewsService:
         """Overall market sentiment summary."""
         all_news = self._fetch_all_news()
         if not all_news:
+            logger.warning("No news sources available for market summary — returning neutral fallback")
             return {
                 "overall_sentiment": 0.5,
                 "article_count": 0,
                 "bullish_count": 0,
                 "bearish_count": 0,
                 "status": "no_data",
+                "data_available": False,
+                "warning": "Sentiment API unavailable — using neutral fallback",
                 "last_updated": datetime.utcnow().isoformat()
             }
 
@@ -105,6 +120,8 @@ class NewsService:
         n = min(len(all_news), 50)
         avg = total_score / n if n > 0 else 0.5
 
+        api_sourced = any(a.get("source") != "synthetic" for a in all_news)
+
         return {
             "overall_sentiment": round(avg, 3),
             "article_count": len(all_news),
@@ -112,7 +129,35 @@ class NewsService:
             "bearish_count": bearish_count,
             "neutral_count": n - bullish_count - bearish_count,
             "status": "ok",
+            "data_available": api_sourced,
+            "warning": None if api_sourced else "Sentiment API unavailable — using synthetic data",
             "last_updated": datetime.utcnow().isoformat()
+        }
+
+    def _neutral_fallback(self, warning: str) -> Dict:
+        """Return a neutral result dict flagged as unavailable."""
+        return {
+            "score": 0.5,
+            "sentiment": "neutral",
+            "data_available": False,
+            "warning": warning,
+            "source_count": 0,
+        }
+
+    def _build_result(self, score: float, source_count: int, data_available: bool) -> Dict:
+        """Build a sentiment result dict from a computed score."""
+        if score > 0.6:
+            label = "bullish"
+        elif score < 0.4:
+            label = "bearish"
+        else:
+            label = "neutral"
+        return {
+            "score": score,
+            "sentiment": label,
+            "data_available": data_available,
+            "warning": None if data_available else "Sentiment API unavailable — using synthetic data",
+            "source_count": source_count,
         }
 
     def _fetch_all_news(self) -> List[Dict]:
@@ -149,6 +194,7 @@ class NewsService:
             }
             r = requests.get(url, params=params, timeout=8)
             if r.status_code != 200:
+                logger.warning(f"CryptoPanic API returned status {r.status_code} — sentiment data unavailable")
                 return []
             data = r.json()
             articles = []
@@ -162,7 +208,7 @@ class NewsService:
                 })
             return articles
         except Exception as e:
-            logger.debug(f"CryptoPanic fetch failed: {e}")
+            logger.warning(f"CryptoPanic fetch failed: {e}")
             return []
 
     def _fetch_newsapi(self) -> List[Dict]:
@@ -177,6 +223,7 @@ class NewsService:
             }
             r = requests.get(url, params=params, timeout=8)
             if r.status_code != 200:
+                logger.warning(f"NewsAPI returned status {r.status_code} — sentiment data unavailable")
                 return []
             data = r.json()
             articles = []
@@ -190,7 +237,7 @@ class NewsService:
                 })
             return articles
         except Exception as e:
-            logger.debug(f"NewsAPI fetch failed: {e}")
+            logger.warning(f"NewsAPI fetch failed: {e}")
             return []
 
     def _get_synthetic_news(self) -> List[Dict]:

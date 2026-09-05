@@ -6,6 +6,7 @@ Prevents memory corruption and duplicate entries.
 
 import logging
 import hashlib
+from collections import deque
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -26,7 +27,8 @@ class MemoryService:
         self.config = config
         self.portfolio_memory = load_memory("portfolio_memory")
         self.strategy_memory = load_memory("strategy_memory")
-        self._seen_trade_ids = set()
+        self._seen_trade_ids: deque = deque(maxlen=50000)
+        self._seen_trade_set: set = set()  # Fast O(1) lookup companion
         self._load_seen_ids()
 
     def _load_seen_ids(self):
@@ -35,8 +37,11 @@ class MemoryService:
             history = self._load_recent_trades(months=2)
             for t in history:
                 tid = t.get("order_id") or t.get("id")
-                if tid:
-                    self._seen_trade_ids.add(tid)
+                if tid and tid not in self._seen_trade_set:
+                    self._seen_trade_ids.append(tid)
+                    self._seen_trade_set.add(tid)
+            # Sync set with deque in case deque evicted old entries
+            self._seen_trade_set = set(self._seen_trade_ids)
         except Exception as e:
             logger.warning(f"Could not load seen IDs: {e}")
 
@@ -48,7 +53,7 @@ class MemoryService:
         trade_id = trade.get("order_id") or trade.get("id")
 
         # Dedup check
-        if trade_id and trade_id in self._seen_trade_ids:
+        if trade_id and trade_id in self._seen_trade_set:
             logger.debug(f"Trade {trade_id} already recorded, skipping")
             return False
 
@@ -61,7 +66,11 @@ class MemoryService:
         path = get_history_path("trades")
         success = append_to_list_file(path, trade)
         if success and trade_id:
-            self._seen_trade_ids.add(trade_id)
+            self._seen_trade_ids.append(trade_id)
+            self._seen_trade_set.add(trade_id)
+            # Keep set in sync with deque evictions
+            if len(self._seen_trade_set) > len(self._seen_trade_ids) + 100:
+                self._seen_trade_set = set(self._seen_trade_ids)
 
         return success
 

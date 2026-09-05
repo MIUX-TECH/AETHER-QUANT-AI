@@ -23,7 +23,8 @@ class GroqAIClient:
     def __init__(self, api_key: str = "", model: str = ""):
         self.api_key = api_key or os.getenv("GROQ_API_KEY", "")
         self.model = model or os.getenv("GROQ_MODEL", DEFAULT_MODEL)
-        self.timeout = 10
+        self.timeout = 25
+        self.max_retries = 1
 
     @property
     def is_available(self) -> bool:
@@ -42,18 +43,32 @@ class GroqAIClient:
             "max_tokens": max_tokens,
             "temperature": temperature
         }
-        try:
-            r = requests.post(GROQ_ENDPOINT, headers=headers, json=payload, timeout=self.timeout)
-            if r.status_code == 200:
-                data = r.json()
-                content = data["choices"][0]["message"]["content"]
-                # Strip thinking tags if Qwen includes them
-                content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
-                return content
-            else:
-                logger.warning(f"Groq API error {r.status_code}: {r.text[:200]}")
-        except Exception as e:
-            logger.warning(f"Groq API call failed: {e}")
+        import time as _time
+        for attempt in range(self.max_retries + 1):
+            try:
+                r = requests.post(GROQ_ENDPOINT, headers=headers, json=payload, timeout=self.timeout)
+                if r.status_code == 200:
+                    data = r.json()
+                    content = data["choices"][0]["message"]["content"]
+                    # Strip thinking tags if Qwen includes them
+                    content = re.sub(r"<think>.*?</think>", "", content, flags=re.DOTALL).strip()
+                    return content
+                elif r.status_code in [429, 503] and attempt < self.max_retries:
+                    wait = 2 ** (attempt + 1)
+                    logger.warning(f"Groq API {r.status_code}, retrying in {wait}s...")
+                    _time.sleep(wait)
+                    continue
+                else:
+                    logger.warning(f"Groq API error {r.status_code}: {r.text[:200]}")
+            except requests.exceptions.Timeout:
+                if attempt < self.max_retries:
+                    logger.warning(f"Groq API timeout, retrying ({attempt + 1}/{self.max_retries})...")
+                    _time.sleep(2)
+                    continue
+                logger.warning("Groq API timeout after all retries")
+            except Exception as e:
+                logger.warning(f"Groq API call failed: {e}")
+                break
         return None
 
     def analyze_news_sentiment(self, articles: List[Dict]) -> Dict[str, float]:

@@ -18,10 +18,11 @@ logger = logging.getLogger(__name__)
 
 class MarketScanner:
     def __init__(self, market_data: MarketDataService,
-                 config: Dict = None, memory: Dict = None):
+                 config: Dict = None, memory: Dict = None, state: Dict = None):
         self.market_data = market_data
         self.config = config or {}
         self.memory = memory or {}
+        self.state = state or {}
         self.regime_classifier = RegimeClassifier(config)
         self.scoring_engine = ScoringEngine(config, memory.get("portfolio_memory", {}))
         self.entry_filter = EntryFilter()
@@ -53,7 +54,14 @@ class MarketScanner:
                 if len(candles) < 30:
                     continue
                 try:
-                    indicators_by_tf[tf] = compute_all_indicators(candles, self.indicator_config)
+                    # Filter out candles with zero/invalid prices to prevent ZeroDivisionError
+                    valid_candles = [c for c in candles if c.get("close", 0) > 0 and c.get("high", 0) > 0]
+                    if len(valid_candles) < 30:
+                        logger.warning(f"Insufficient valid candles for {symbol} {tf}: {len(valid_candles)}")
+                        continue
+                    indicators_by_tf[tf] = compute_all_indicators(valid_candles, self.indicator_config)
+                except ZeroDivisionError:
+                    logger.warning(f"ZeroDivisionError computing indicators for {symbol} {tf} — skipping timeframe")
                 except Exception as e:
                     logger.error(f"Indicator error {symbol} {tf}: {e}")
 
@@ -83,7 +91,7 @@ class MarketScanner:
             )
 
             # 5b. Advanced Entry Filter (ported from aitrade)
-            filter_meta = self.entry_filter.assess(score_result, {}, self.config, strategy_target="spot")
+            filter_meta = self.entry_filter.assess(score_result, self.state, self.config, strategy_target="spot")
             score_result = {**score_result, **filter_meta}
 
             # 6. Compute volatility metrics

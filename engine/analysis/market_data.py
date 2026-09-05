@@ -138,6 +138,11 @@ class MarketDataService:
         val = fetch_fn()
         if val is not None:
             self._cache[key] = (now, val)
+            # Evict expired entries when cache grows too large
+            if len(self._cache) > 500:
+                expired = [k for k, (ts, _) in self._cache.items() if now - ts > ttl * 3]
+                for k in expired:
+                    del self._cache[k]
         elif key in self._cache:
             # Stale cache fallback if remote call failed/cooldown
             return self._cache[key][1]

@@ -21,19 +21,21 @@ if ! command -v python3 &>/dev/null; then
   exit 1
 fi
 
-# Check/create virtualenv
-#if [ ! -d "venv" ]; then
-#  echo "→  Creating virtual environment..."
-#  python3 -m venv venv
-#fi
+# Activate venv (check project-local first, then user-global fallback)
+VENV_PATH="${VENV_DIR:-}"
+if [ -z "$VENV_PATH" ]; then
+  if [ -f "venv/bin/activate" ]; then
+    VENV_PATH="venv"
+  elif [ -f "$HOME/venvs/ai/bin/activate" ]; then
+    VENV_PATH="$HOME/venvs/ai"
+  fi
+fi
 
-# Activate venv (sesuai setup user: ~/venvs/ai)
-if [ -f ~/venvs/ai/bin/activate ]; then
-  source ~/venvs/ai/bin/activate
+if [ -n "$VENV_PATH" ] && [ -f "$VENV_PATH/bin/activate" ]; then
+  source "$VENV_PATH/bin/activate"
+  echo "✓  Using venv: $VENV_PATH"
 else
-  echo "⚠ Venv tidak ditemukan di ~/venvs/ai, membuat venv baru..."
-  python3 -m venv ~/venvs/ai
-  source ~/venvs/ai/bin/activate
+  echo "⚠  No venv found, using system Python"
 fi
 
 # Install dependencies
@@ -48,15 +50,18 @@ if [ ! -f "config/app.json" ]; then
   echo "→  Default configs already present"
 fi
 
+# Port: use $PORT env var (Render sets this), fallback to 8000
+API_PORT="${PORT:-${API_PORT:-8000}}"
+
 echo ""
 echo "✓  All dependencies installed"
-echo "→  Starting backend on http://localhost:8000"
-echo "→  API docs: http://localhost:8000/docs"
+echo "→  Starting backend on http://localhost:${API_PORT}"
+echo "→  API docs: http://localhost:${API_PORT}/docs"
 echo ""
 
 # Start FastAPI
 python3 -m uvicorn api.main:app \
   --host 0.0.0.0 \
-  --port 8000 \
+  --port "$API_PORT" \
   --reload \
   --log-level info

@@ -173,11 +173,13 @@ class TestStorageAtomic(unittest.TestCase):
 
 
 class TestUpstashRedisPersistence(unittest.TestCase):
+    @unittest.skipUnless(
+        os.getenv("UPSTASH_REDIS_REST_URL") and os.getenv("UPSTASH_REDIS_REST_TOKEN"),
+        "Upstash credentials not configured in environment"
+    )
     def test_upstash_rest_get_and_set(self):
         from engine.storage import _upstash_get, _upstash_set
-        # Test with live Upstash DB configured in Singapore
-        os.environ["UPSTASH_REDIS_REST_URL"] = "https://neutral-osprey-133586.upstash.io"
-        os.environ["UPSTASH_REDIS_REST_TOKEN"] = "gQAAAAAAAgnSAAIgcDE1Y2VkNThiOTYxYWE0MTJlYmU0M2UwMzZiOWJjYTg3NQ"
+        # Uses credentials from environment variables — never hardcode secrets
         
         test_data = {"test_run": True, "equity": 19.68, "timestamp": time.time()}
         ok = _upstash_set("unit_test_key", test_data)

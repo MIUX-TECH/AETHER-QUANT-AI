@@ -316,7 +316,7 @@ class PortfolioManager:
             "pnl_usdt": round(net_pnl, 2),
             "pnl_pct": round(pnl_pct * 100, 3),
             "gross_pnl": round(pnl_usdt, 2),
-            "fee_total": round(fee * 2, 4),
+            "fee_total": round(fee + (position.get("position_usdt", 0) * 0.001), 4),  # entry fee + estimated exit fee (0.1% taker)
             "close_reason": reason,
             "closed_at": closed_at,
             "hold_duration": hold_duration,

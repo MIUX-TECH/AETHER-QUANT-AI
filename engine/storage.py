@@ -297,7 +297,7 @@ def save_config(name: str, data: Dict) -> bool:
 def load_state() -> Dict:
     # 1. Try Upstash Redis remote persistence first if configured
     remote = _upstash_get("runtime_state")
-    if remote and isinstance(remote, dict) and remote.get("portfolio") or remote.get("positions"):
+    if remote and isinstance(remote, dict) and (remote.get("portfolio") or remote.get("positions")):
         logger.info("Loaded runtime_state from external Upstash Redis cloud persistence")
         write_json(DIRS["state"] / "runtime_state.json", remote, backup=False)
         return remote
@@ -315,7 +315,8 @@ def load_state() -> Dict:
 
 def save_state(data: Dict) -> bool:
     ok = write_json(DIRS["state"] / "runtime_state.json", data, backup=True)
-    _upstash_set("runtime_state", data)
+    safe_data = {k: v for k, v in data.items() if k != "credentials"}
+    _upstash_set("runtime_state", safe_data)
     return ok
 
 

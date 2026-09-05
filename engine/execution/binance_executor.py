@@ -226,23 +226,62 @@ class BinanceExecutor:
     # ============================================================
 
     def _format_qty(self, symbol: str, qty: float) -> str:
-        """Format quantity string accurately according to Binance LOT_SIZE stepSize rules."""
+        """Format quantity to comply with Binance LOT_SIZE stepSize rules using precise decimal math."""
         rules = self.get_symbol_rules(symbol)
         step_size_str = rules.get("stepSize", "0.0001")
+        min_qty_str = rules.get("minQty", "0.0001")
         try:
-            from decimal import Decimal
-            step = Decimal(str(float(step_size_str)))
+            from decimal import Decimal, ROUND_DOWN
+            step = Decimal(step_size_str.rstrip('0') or '1')
             d_qty = Decimal(str(qty))
-            formatted = (d_qty // step) * step
+            min_qty = Decimal(min_qty_str.rstrip('0') or '0')
+            formatted = (d_qty / step).to_integral_value(rounding=ROUND_DOWN) * step
+            if formatted < min_qty:
+                formatted = min_qty
             if step >= 1:
                 return str(int(formatted))
-            res = f"{formatted:f}".rstrip('0').rstrip('.') if '.' in f"{formatted:f}" else str(formatted)
-            return res if res else "0"
-        except Exception:
-            if "BTC" in symbol: return f"{qty:.5f}"
-            if "ETH" in symbol: return f"{qty:.4f}"
-            if any(c in symbol for c in ["PEPE", "SHIB", "BONK", "FLOKI"]): return f"{int(qty)}"
-            return f"{qty:.4f}"
+            result = str(formatted.normalize())
+            if 'E' in result or 'e' in result:
+                result = f"{formatted:f}"
+            return result
+        except Exception as e:
+            logger.warning(f"_format_qty fallback for {symbol} qty={qty}: {e}")
+            step_str = step_size_str.rstrip('0')
+            if '.' in step_str:
+                decimals = len(step_str.split('.')[1])
+            else:
+                decimals = 0
+            import math
+            factor = 10 ** decimals
+            truncated = math.floor(qty * factor) / factor
+            return f"{truncated:.{decimals}f}"
+
+    def _format_price(self, symbol: str, price: float) -> str:
+        """Format price to comply with Binance PRICE_FILTER tickSize rules."""
+        rules = self.get_symbol_rules(symbol)
+        tick_size_str = rules.get("tickSize", "0.01")
+        try:
+            from decimal import Decimal, ROUND_DOWN
+            tick = Decimal(tick_size_str.rstrip('0') or '1')
+            d_price = Decimal(str(price))
+            formatted = (d_price / tick).to_integral_value(rounding=ROUND_DOWN) * tick
+            if tick >= 1:
+                return str(int(formatted))
+            result = str(formatted.normalize())
+            if 'E' in result or 'e' in result:
+                result = f"{formatted:f}"
+            return result
+        except Exception as e:
+            logger.warning(f"_format_price fallback for {symbol} price={price}: {e}")
+            tick_str = tick_size_str.rstrip('0')
+            if '.' in tick_str:
+                decimals = len(tick_str.split('.')[1])
+            else:
+                decimals = 2
+            import math
+            factor = 10 ** decimals
+            truncated = math.floor(price * factor) / factor
+            return f"{truncated:.{decimals}f}"
 
     def _live_spot_order(self, symbol: str, side: str, order_type: str,
                           qty: float = None, price: float = None,
@@ -264,7 +303,7 @@ class BinanceExecutor:
         else:
             params["quantity"] = self._format_qty(symbol, qty) if qty else "0.001"
             if price:
-                params["price"] = f"{price:.4f}" if "BTC" not in symbol else f"{price:.2f}"
+                params["price"] = self._format_price(symbol, price)
             params["timeInForce"] = "GTC"
 
         return self._signed_post(f"{self.base_url}/api/v3/order", params)
@@ -287,7 +326,7 @@ class BinanceExecutor:
             "recvWindow": 5000
         }
         if order_type == "LIMIT":
-            params["price"] = price
+            params["price"] = self._format_price(symbol, price)
             params["timeInForce"] = "GTC"
         if reduce_only:
             params["reduceOnly"] = "true"
@@ -327,14 +366,14 @@ class BinanceExecutor:
                 "mode": "paper"
             }
         
-        sl_limit = sl_limit_price or round(sl_stop_price * 0.995, 2)
+        sl_limit = sl_limit_price or sl_stop_price * 0.995
         params = {
             "symbol": symbol,
             "side": "SELL",
             "quantity": self._format_qty(symbol, qty),
-            "price": tp_price,
-            "stopPrice": sl_stop_price,
-            "stopLimitPrice": sl_limit,
+            "price": self._format_price(symbol, tp_price),
+            "stopPrice": self._format_price(symbol, sl_stop_price),
+            "stopLimitPrice": self._format_price(symbol, sl_limit),
             "stopLimitTimeInForce": "GTC"
         }
         return self._signed_post(f"{self.base_url}/api/v3/order/oco", params)
@@ -411,6 +450,43 @@ class BinanceExecutor:
 
         return 500, {"error": "Max retries exceeded", "last_error": last_err}
 
+    def _send_signed_emergency(self, method: str, url: str, params: dict = None) -> Tuple[int, Any]:
+        """Emergency signed request that bypasses cooldown. Used only for closing positions."""
+        import urllib.parse
+        import re
+        p = dict(params or {})
+        p.setdefault("recvWindow", 60000)
+        p["timestamp"] = int(time.time() * 1000) + self.time_offset
+        p.pop("signature", None)
+
+        query = urllib.parse.urlencode(sorted(p.items()))
+        sig = hmac.new(self.secret_key.encode("utf-8"), query.encode("utf-8"), hashlib.sha256).hexdigest()
+        full_url = f"{url}?{query}&signature={sig}"
+        headers = {
+            "X-MBX-APIKEY": self.api_key.strip(),
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        }
+
+        EMERGENCY_HOSTS = ["data-api.binance.vision", "api4.binance.com", "api3.binance.com", "api.binance.com"]
+        for host in EMERGENCY_HOSTS:
+            try:
+                cur_url = re.sub(r"https://(api\d*|data-api)\.binance\.(com|vision)", f"https://{host}", full_url)
+                if method.upper() == "POST":
+                    r = requests.post(cur_url, headers=headers, timeout=15)
+                elif method.upper() == "DELETE":
+                    r = requests.delete(cur_url, headers=headers, timeout=15)
+                else:
+                    r = requests.get(cur_url, headers=headers, timeout=15)
+                if r.status_code == 200:
+                    logger.info(f"🚨 EMERGENCY request succeeded via {host}")
+                    return 200, r.json()
+                if r.status_code not in [418, 429]:
+                    return r.status_code, r.json()
+            except Exception as e:
+                logger.error(f"Emergency request to {host} failed: {e}")
+                continue
+        return 503, {"error": "All emergency endpoints exhausted"}
+
     def _signed_post(self, url: str, params: dict, futures: bool = False) -> Dict:
         status, data = self._send_signed("POST", url, params)
         return data if isinstance(data, dict) else {"error": str(data), "status": "FAILED"}
@@ -436,21 +512,15 @@ class BinanceExecutor:
             return self._balance_cache
 
         if not self.api_key or not self.secret_key:
-            try:
-                from engine.storage import load_state
-                st = load_state()
-                creds = st.get("credentials", {})
-                if self.mode == "live" and creds.get("api_key"):
-                    self.api_key = creds["api_key"].strip()
-                    self.secret_key = creds["secret_key"].strip()
-                elif self.mode == "testnet" and creds.get("testnet_api_key"):
-                    self.api_key = creds["testnet_api_key"].strip()
-                    self.secret_key = creds["testnet_secret_key"].strip()
-            except Exception:
-                pass
-
-        if self.session and self.api_key:
-            self.session.headers.update({"X-MBX-APIKEY": self.api_key})
+            if self.mode == "live" or not self.testnet:
+                self.api_key = os.getenv("BINANCE_API_KEY", "").strip()
+                self.secret_key = os.getenv("BINANCE_SECRET_KEY", "").strip()
+            else:
+                self.api_key = os.getenv("BINANCE_TESTNET_API_KEY", "").strip()
+                self.secret_key = os.getenv("BINANCE_TESTNET_SECRET_KEY", "").strip()
+            if self.api_key:
+                self.session.headers.update({"X-MBX-APIKEY": self.api_key})
+                logger.info("Loaded API credentials from environment variables")
 
         if self.api_key and self.secret_key:
             status, data = self._send_signed("GET", f"{self.base_url}/api/v3/account")
@@ -529,9 +599,11 @@ class BinanceExecutor:
             return {"tranId": 999999, "status": "CONFIRMED", "simulated": True, "amount": amount, "direction": direction}
 
         transfer_type = 1 if direction in ["spot_to_futures", "1", 1] else 2
+        # Use string truncation to avoid floating-point dust that Binance SAPI rejects
+        amt_str = f"{float(amount):.8f}"
         params = {
             "asset": asset.upper(),
-            "amount": round(float(amount), 4),
+            "amount": amt_str,
             "type": transfer_type
         }
         status, data = self._send_signed("POST", f"{self.base_url}/sapi/v1/futures/transfer", params)
@@ -541,5 +613,48 @@ class BinanceExecutor:
         
         logger.error(f"❌ SAPI Futures Transfer FAILED ({status}): {data}")
         return {"status": "FAILED", "error": str(data), "http_status": status}
+
+    def emergency_close_position(self, symbol: str, qty: float, side: str = "SELL",
+                                   trade_type: str = "spot") -> Dict:
+        """Emergency position close that bypasses rate-limit cooldown.
+        Used when positions must be closed during flash crashes regardless of cooldown state."""
+        logger.warning(f"🚨 EMERGENCY CLOSE: {side} {qty} {symbol} ({trade_type}) — bypassing cooldown")
+        
+        if self.mode == "paper":
+            return self._paper_spot_order(symbol, side, "MARKET", qty * 1, 1, qty=qty)
+
+        formatted_qty = self._format_qty(symbol, qty)
+        client_oid = f"AQ_EMRG_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
+
+        if trade_type == "futures":
+            params = {
+                "symbol": symbol,
+                "side": side,
+                "type": "MARKET",
+                "quantity": formatted_qty,
+                "newClientOrderId": client_oid,
+                "reduceOnly": "true",
+                "timestamp": int(time.time() * 1000),
+                "recvWindow": 60000
+            }
+            status, data = self._send_signed_emergency("POST", f"{self.futures_url}/fapi/v1/order", params)
+        else:
+            params = {
+                "symbol": symbol,
+                "side": side,
+                "type": "MARKET",
+                "quantity": formatted_qty,
+                "newClientOrderId": client_oid,
+                "timestamp": int(time.time() * 1000),
+                "recvWindow": 60000
+            }
+            status, data = self._send_signed_emergency("POST", f"{self.base_url}/api/v3/order", params)
+
+        if status == 200:
+            logger.info(f"✅ EMERGENCY CLOSE SUCCESS: {symbol} {formatted_qty} — order filled")
+        else:
+            logger.error(f"❌ EMERGENCY CLOSE FAILED: {symbol} — {data}")
+        
+        return data if isinstance(data, dict) else {"error": str(data), "status": "FAILED"}
 
 

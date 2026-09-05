@@ -2,9 +2,9 @@
 
 export const getAdminToken = (): string => {
   if (typeof window !== 'undefined') {
-    return localStorage.getItem('ADMIN_TOKEN') || 'aether-quant-admin-2026'
+    return localStorage.getItem('ADMIN_TOKEN') || ''
   }
-  return 'aether-quant-admin-2026'
+  return ''
 }
 
 export const setAdminToken = (token: string) => {
@@ -26,7 +26,7 @@ const getBaseUrl = () => {
       return saved.replace(/\/$/, '')
     }
   }
-  return (import.meta as any).env?.VITE_API_BASE_URL || 'https://aether-quant-api-sg.onrender.com'
+  return (import.meta as any).env?.VITE_API_BASE_URL || ''
 }
 
 async function request<T>(path: string, options?: RequestInit): Promise<T> {

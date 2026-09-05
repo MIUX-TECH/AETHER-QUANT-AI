@@ -14,3 +14,9 @@ services:
         value: qwen/qwen3.6-27b
       - key: LOG_LEVEL
         value: INFO
+      - key: ADMIN_SECRET_KEY
+        sync: false
+      - key: UPSTASH_REDIS_REST_URL
+        sync: false
+      - key: UPSTASH_REDIS_REST_TOKEN
+        sync: false

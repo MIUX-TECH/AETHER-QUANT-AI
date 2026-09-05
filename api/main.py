@@ -68,6 +68,7 @@ from engine.analysis.scoring import ScoringEngine
 from engine.risk.risk_manager import RiskManager
 from engine.portfolio.portfolio_manager import PortfolioManager
 from engine.execution.binance_executor import BinanceExecutor
+from engine.execution.ws_price_stream import PriceStream
 from engine.sentiment.news_service import NewsService
 from engine.learning.memory_service import MemoryService
 from engine.reporting.report_service import ReportService
@@ -81,13 +82,14 @@ from engine.scheduler.scheduler import Scheduler
 logger = logging.getLogger(__name__)
 orchestrator: Optional[TradingOrchestrator] = None
 scheduler: Optional[Scheduler] = None
+price_stream: Optional[PriceStream] = None
 state: dict = {}
 app_config: dict = {}
 
 
 def boot_system():
     """Initialize all services and wire them together."""
-    global orchestrator, scheduler, state, app_config
+    global orchestrator, scheduler, price_stream, state, app_config
 
     ensure_dirs()
 
@@ -149,16 +151,15 @@ def boot_system():
     })
     save_state(state)
 
-    # API credentials with persistence
-    saved_creds = state.get("credentials", {})
+    # API credentials from environment only — never from state/Upstash
     if mode == "live":
         testnet = False
-        api_key = (saved_creds.get("api_key") or os.getenv("BINANCE_API_KEY") or "").strip()
-        secret_key = (saved_creds.get("secret_key") or os.getenv("BINANCE_SECRET_KEY") or "").strip()
+        api_key = os.getenv("BINANCE_API_KEY", "").strip()
+        secret_key = os.getenv("BINANCE_SECRET_KEY", "").strip()
     elif mode == "testnet":
         testnet = True
-        api_key = (saved_creds.get("testnet_api_key") or os.getenv("BINANCE_TESTNET_API_KEY") or "").strip()
-        secret_key = (saved_creds.get("testnet_secret_key") or os.getenv("BINANCE_TESTNET_SECRET_KEY") or "").strip()
+        api_key = os.getenv("BINANCE_TESTNET_API_KEY", "").strip()
+        secret_key = os.getenv("BINANCE_TESTNET_SECRET_KEY", "").strip()
     else:
         testnet = False
         api_key = ""
@@ -168,7 +169,7 @@ def boot_system():
     market_data = MarketDataService(api_key, secret_key, testnet, mode)
     memory_svc = MemoryService(app_config)
     portfolio_memory = load_memory("portfolio_memory")
-    scanner = MarketScanner(market_data, app_config, {"portfolio_memory": portfolio_memory})
+    scanner = MarketScanner(market_data, app_config, {"portfolio_memory": portfolio_memory}, state=state)
     risk_mgr = RiskManager(app_config)
     portfolio_mgr = PortfolioManager(app_config, state, portfolio_memory)
     executor = BinanceExecutor(api_key, secret_key, testnet, mode)
@@ -193,7 +194,7 @@ def boot_system():
     sched_cfg = app_cfg.get("scheduler", {})
 
     scheduler.register("scan", orchestrator.run_scan_cycle, sched_cfg.get("scan_interval", 60))
-    scheduler.register("execute", orchestrator.run_execution_cycle, sched_cfg.get("scan_interval", 60))
+    scheduler.register("execute", orchestrator.run_execution_cycle, sched_cfg.get("execute_interval", sched_cfg.get("scan_interval", 60)))
     scheduler.register("rebalance", orchestrator.run_rebalance, sched_cfg.get("rebalance_interval", 3600))
     scheduler.register("learning", orchestrator.run_learning_update, sched_cfg.get("learning_update_interval", 1800))
     scheduler.register("report", orchestrator.run_daily_report, sched_cfg.get("report_interval", 86400))
@@ -215,11 +216,40 @@ def boot_system():
     scheduler.start()
     logger.info(f"BINANCE-AI-TRADER booted. Mode: {mode}")
 
+    # Start fast price stream for TP/SL monitoring
+    tracked_symbols = state.get("scanner", {}).get("symbols", [])
+    if tracked_symbols:
+        price_stream = PriceStream(tracked_symbols, poll_interval=2.0, flash_crash_pct=0.05)
+
+        def _on_flash_crash(symbol, current_price, prev_price, drop_pct):
+            """Emergency close position on flash crash detection."""
+            if not orchestrator:
+                return
+            logger.warning(
+                f"🚨 PriceStream flash crash handler: {symbol} "
+                f"dropped {drop_pct:.1%} ({prev_price:.4f} → {current_price:.4f})"
+            )
+            for ttype in ["spot", "futures"]:
+                pos = orchestrator.state.get("positions", {}).get(ttype, {}).get(symbol)
+                if pos:
+                    try:
+                        orchestrator._close_position(
+                            symbol, pos, "flash_crash_emergency", current_price, ttype
+                        )
+                        logger.warning(f"Flash crash emergency close executed: {symbol} ({ttype})")
+                    except Exception as e:
+                        logger.error(f"Flash crash emergency close failed for {symbol}: {e}")
+
+        price_stream.on_flash_crash(_on_flash_crash)
+        price_stream.start()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     boot_system()
     yield
+    if price_stream:
+        price_stream.stop()
     if scheduler:
         scheduler.stop()
     save_state(state)
@@ -262,15 +292,17 @@ _wallet_cache_data = None
 _wallet_cache_time = 0.0
 _status_cache_data = None
 _status_cache_time = 0.0
+_cache_lock = __import__('threading').Lock()
 
 @app.get("/api/status")
-def get_status():
+def get_status(verified: bool = Depends(verify_master_token)):
     global _status_cache_data, _status_cache_time
     if not orchestrator:
         raise HTTPException(503, "System not initialized")
     now = time.time()
-    if _status_cache_data and (now - _status_cache_time) < 4.0:
-        return _status_cache_data
+    with _cache_lock:
+        if _status_cache_data and (now - _status_cache_time) < 4.0:
+            return _status_cache_data
     res = orchestrator.get_full_status()
     try:
         w = get_wallet()
@@ -280,8 +312,9 @@ def get_status():
             res["portfolio"]["futures_equity"] = w.get("futures_usd", 0.0)
     except Exception:
         pass
-    _status_cache_data = res
-    _status_cache_time = now
+    with _cache_lock:
+        _status_cache_data = res
+        _status_cache_time = now
     return res
 
 @app.get("/api/health")
@@ -291,6 +324,14 @@ def health_check():
         "timestamp": datetime.utcnow().isoformat(),
         "scheduler_running": scheduler.is_running if scheduler else False,
     }
+
+@app.get("/api/price-stream/status")
+def get_price_stream_status(verified: bool = Depends(verify_master_token)):
+    if not price_stream:
+        return {"running": False, "message": "PriceStream not initialized"}
+    status = price_stream.get_status()
+    status["cached_prices_sample"] = dict(list(price_stream.get_all_prices().items())[:5])
+    return status
 
 @app.post("/api/admin/reset-cooldown")
 def reset_cooldown(verified: bool = Depends(verify_master_token)):
@@ -349,7 +390,7 @@ def debug_binance(verified: bool = Depends(verify_master_token)):
     }
 
 @app.get("/api/scan")
-def get_scan_results():
+def get_scan_results(verified: bool = Depends(verify_master_token)):
     return orchestrator._scan_results if orchestrator else {}
 
 @app.post("/api/scan/trigger")
@@ -363,7 +404,7 @@ _portfolio_cache_data = None
 _portfolio_cache_time = 0.0
 
 @app.get("/api/portfolio")
-def get_portfolio():
+def get_portfolio(verified: bool = Depends(verify_master_token)):
     global _portfolio_cache_data, _portfolio_cache_time
     if not orchestrator:
         raise HTTPException(503)
@@ -393,13 +434,13 @@ def get_portfolio():
     return res
 
 @app.get("/api/positions")
-def get_positions():
+def get_positions(verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     return orchestrator.get_full_status()["positions"]
 
 @app.get("/api/wallet")
-def get_wallet():
+def get_wallet(verified: bool = Depends(verify_master_token)):
     global _wallet_cache_data, _wallet_cache_time
     if not orchestrator:
         raise HTTPException(503)
@@ -554,14 +595,7 @@ def switch_mode(payload: ModeSwitchPayload, verified: bool = Depends(verify_mast
             orchestrator.executor.secret_key = payload.secret_key.strip()
             orchestrator.executor.session.headers.update({"X-MBX-APIKEY": payload.api_key.strip()})
             
-            # Persist credentials into state so reboots never lose them
-            state.setdefault("credentials", {})
-            if mode == "live":
-                state["credentials"]["api_key"] = payload.api_key.strip()
-                state["credentials"]["secret_key"] = payload.secret_key.strip()
-            elif mode == "testnet":
-                state["credentials"]["testnet_api_key"] = payload.api_key.strip()
-                state["credentials"]["testnet_secret_key"] = payload.secret_key.strip()
+            # SECURITY: credentials are NOT persisted to state/Upstash — use env vars or .env only
 
     if hasattr(orchestrator, "market_data"):
         orchestrator.market_data.mode = mode
@@ -575,7 +609,7 @@ def switch_mode(payload: ModeSwitchPayload, verified: bool = Depends(verify_mast
     return {"status": "ok", "mode": mode, "testnet": testnet}
 
 @app.get("/api/orders/open")
-def get_open_orders():
+def get_open_orders(verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     try:
@@ -615,19 +649,19 @@ def close_all_positions(verified: bool = Depends(verify_master_token)):
     return {"status": "ok", "closed_count": len(exits), "exits": exits}
 
 @app.get("/api/binance/deposits")
-def get_binance_deposits(limit: int = 20):
+def get_binance_deposits(limit: int = 20, verified: bool = Depends(verify_master_token)):
     if not orchestrator or not hasattr(orchestrator, "executor"):
         return []
     return orchestrator.executor.get_deposit_history(limit)
 
 @app.get("/api/binance/withdrawals")
-def get_binance_withdrawals(limit: int = 20):
+def get_binance_withdrawals(limit: int = 20, verified: bool = Depends(verify_master_token)):
     if not orchestrator or not hasattr(orchestrator, "executor"):
         return []
     return orchestrator.executor.get_withdrawal_history(limit)
 
 @app.get("/api/binance/transfers")
-def get_binance_transfers(limit: int = 20):
+def get_binance_transfers(limit: int = 20, verified: bool = Depends(verify_master_token)):
     if not orchestrator or not hasattr(orchestrator, "executor"):
         return []
     return orchestrator.executor.get_transfer_history(limit)
@@ -646,7 +680,7 @@ def execute_transfer(payload: BinanceTransferPayload, verified: bool = Depends(v
 
 
 @app.get("/api/history")
-def get_history(limit: int = 50, months: int = 1, symbol: str = None, strategy: str = None):
+def get_history(limit: int = 50, months: int = 1, symbol: str = None, strategy: str = None, verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     return orchestrator.report_service.get_trade_journal(symbol, strategy, limit, months)
@@ -664,7 +698,7 @@ def get_daily_report():
     return orchestrator.run_daily_report()
 
 @app.get("/api/decisions")
-def get_decisions(limit: int = 50):
+def get_decisions(limit: int = 50, verified: bool = Depends(verify_master_token)):
     from engine.storage import get_history_path, read_json
     path = get_history_path("decision_log")
     data = read_json(path, default=[])
@@ -682,13 +716,13 @@ def get_news(symbol: str = None):
     return orchestrator.news_service.get_market_summary()
 
 @app.get("/api/memory")
-def get_memory():
+def get_memory(verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     return orchestrator.memory_service.get_learning_summary()
 
 @app.get("/api/config")
-def get_config():
+def get_config(verified: bool = Depends(verify_master_token)):
     app_c = load_config("app")
     trading_c = load_config("trading")
     # Mask sensitive API secrets
@@ -756,7 +790,7 @@ def control(payload: ControlAction, verified: bool = Depends(verify_master_token
         raise HTTPException(400, f"Unknown action: {action}")
 
 @app.get("/api/scheduler")
-def get_scheduler():
+def get_scheduler(verified: bool = Depends(verify_master_token)):
     return scheduler.get_status() if scheduler else {}
 
 @app.get("/api/candles/{symbol}")
