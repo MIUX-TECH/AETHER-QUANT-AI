@@ -389,7 +389,10 @@ def debug_binance(verified: bool = Depends(verify_master_token)):
     if not orchestrator or not hasattr(orchestrator, "executor"):
         return {"error": "No executor"}
     ex = orchestrator.executor
-    status, data = ex._send_signed("GET", f"{ex.base_url}/api/v3/account")
+    try:
+        status, data = ex._send_signed("GET", f"{ex.base_url}/api/v3/account")
+    except Exception as e:
+        return {"error": f"send_signed failed: {e}", "api_key_set": bool(ex.api_key), "secret_key_set": bool(ex.secret_key)}
     balances = [b for b in data.get("balances", []) if float(b.get("free", 0)) + float(b.get("locked", 0)) > 0] if isinstance(data, dict) else []
     now = time.time()
     return {
@@ -399,7 +402,7 @@ def debug_binance(verified: bool = Depends(verify_master_token)):
         "api_key_masked": f"{ex.api_key[:6]}...{ex.api_key[-4:]}" if ex.api_key else "EMPTY",
         "secret_key_len": len(ex.secret_key),
         "time_offset": ex.time_offset,
-        "cooldown_remaining_sec": max(0, int(ex.cooldown_until - now)),
+        "cooldown_remaining_sec": max(0, int(getattr(ex, "cooldown_until", 0) - now)),
         "http_status": status,
         "raw_response": data if not isinstance(data, dict) or "balances" not in data else f"Found {len(balances)} non-zero balances",
         "non_zero_balances": balances[:10]
