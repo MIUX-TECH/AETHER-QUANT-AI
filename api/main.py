@@ -108,7 +108,7 @@ def boot_system():
     log_level = app_cfg.get("app", {}).get("log_level", "INFO")
     setup_logging(log_level)
 
-    state = load_state()
+        state = load_state()
     state.setdefault("system", {})["mode"] = mode
     state.setdefault("system", {})["status"] = "starting"
     state.setdefault("system", {})["auto_enabled"] = True
