@@ -596,6 +596,7 @@ class BinanceExecutor:
 
     def get_earn_positions(self, asset: str = None) -> List[Dict]:
         """Fetch active Flexible Simple Earn positions."""
+        params = {}
         if asset:
             params["asset"] = asset.upper()
         status, data = self._send_signed("GET", f"{self.base_url}/sapi/v1/simple-earn/flexible/position", params)
