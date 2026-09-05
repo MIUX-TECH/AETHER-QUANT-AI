@@ -218,7 +218,7 @@ def boot_system():
     # Start fast price stream for TP/SL monitoring
     tracked_symbols = state.get("scanner", {}).get("symbols", [])
     if tracked_symbols:
-        price_stream = PriceStream(tracked_symbols, poll_interval=2.0, flash_crash_pct=0.05)
+        # [DISABLED] price_stream = PriceStream(tracked_symbols, poll_interval=2.0, flash_crash_pct=0.05)
 
         def _on_flash_crash(symbol, current_price, prev_price, drop_pct):
             """Emergency close position on flash crash detection."""
@@ -239,8 +239,8 @@ def boot_system():
                     except Exception as e:
                         logger.error(f"Flash crash emergency close failed for {symbol}: {e}")
 
-        price_stream.on_flash_crash(_on_flash_crash)
-        price_stream.start()
+        # price_stream.on_flash_crash(_on_flash_crash)
+        # price_stream.start()
 
 
 _boot_ready = threading.Event()
