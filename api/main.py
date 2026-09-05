@@ -7,6 +7,7 @@ import os
 import sys
 import time
 import logging
+import threading
 import requests
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -242,9 +243,24 @@ def boot_system():
         price_stream.start()
 
 
+_boot_ready = threading.Event()
+_boot_error: Optional[str] = None
+
+def _boot_in_thread():
+    global _boot_error
+    try:
+        boot_system()
+        _boot_ready.set()
+    except Exception as e:
+        _boot_error = str(e)
+        _boot_ready.set()
+        logger.error(f"Boot failed: {e}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    boot_system()
+    t = threading.Thread(target=_boot_in_thread, daemon=True)
+    t.start()
     yield
     if price_stream:
         price_stream.stop()
@@ -317,8 +333,9 @@ def get_status(verified: bool = Depends(verify_master_token)):
 
 @app.get("/api/health")
 def health_check():
+    booted = _boot_ready.is_set()
     return {
-        "status": "running",
+        "status": "running" if booted and not _boot_error else "starting" if not booted else "error",
         "timestamp": datetime.utcnow().isoformat(),
         "scheduler_running": scheduler.is_running if scheduler else False,
     }
