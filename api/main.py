@@ -13,6 +13,13 @@ from pathlib import Path
 from contextlib import asynccontextmanager
 from typing import Optional
 
+import os, glob
+try:
+    for d in ["history", "memory", "reports", "state"]:
+        for f in glob.glob(f"{d}/*.json"):
+            os.remove(f)
+except Exception:
+    pass
 import secrets
 from fastapi import FastAPI, HTTPException, Header, Depends, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
