@@ -362,12 +362,12 @@ class TradingOrchestrator:
         total_equity = self.state.get("portfolio", {}).get("total_equity", 0)
         deploy_usdt = total_equity * deploy_pct
 
-        if deploy_usdt < 5.0:
+        if deploy_usdt < 13.50:
             return
 
         available = self.portfolio_manager.get_available_for_trade("spot", "BTCUSDT")
         deploy_usdt = min(deploy_usdt, available)
-        if deploy_usdt < 5.0:
+        if deploy_usdt < 13.50:
             return
 
         if True:
