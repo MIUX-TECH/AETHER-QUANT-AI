@@ -726,6 +726,17 @@ class TradingOrchestrator:
         """Generate end-of-day report."""
         return self.report_service.generate_daily_report(self.state, self._closed_today)
 
+    def run_rebalance(self) -> Dict:
+        """Check portfolio drift and rebalance if needed."""
+        need, reason = self.portfolio_manager.should_rebalance()
+        if not need:
+            return {"status": "ok", "rebalanced": False, "reason": reason}
+        allocations = self.portfolio_manager.get_allocations()
+        self.state.setdefault("portfolio", {})["last_rebalance"] = __import__("datetime").datetime.utcnow().isoformat()
+        from engine.storage import save_state
+        save_state(self.state)
+        return {"status": "ok", "rebalanced": True, "allocations": allocations}
+
     def _sync_positions_from_holdings(self, wallet_balances: Dict) -> None:
         """Reconstruct active position objects if memory state was reset after container reboot."""
         if not wallet_balances or not isinstance(wallet_balances, dict):
