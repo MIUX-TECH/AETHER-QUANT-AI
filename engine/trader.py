@@ -705,35 +705,14 @@ class TradingOrchestrator:
         pnl_val = float(closed.get('pnl_usdt', 0))
         pnl_pct_val = float(closed.get('pnl_pct', 0))
 
-        # Update portfolio equity (paper trading)
-                        if spot_free_usdt < 0.01:
-                    logger.debug(f"Rebalance skipped: Spot USDT is zero, waiting for realized profits")
-                    return {"status": "skipped_zero_balance", "reason": "Spot USDT is zero — will rebalance after next profitable trade close"}
-                reason = f"Pending transfer: Spot Free USDT (${spot_free_usdt:.2f}) insufficient for ${deficit:.2f} transfer (min ${min_transfer:.0f})"
-                logger.info(f"⏳ REBALANCE PENDING: {reason}")
-                return {"status": "pending_insufficient_spot_usdt", "reason": reason, "spot_free": spot_free_usdt, "needed": deficit}
-
-        # CASE 2: Futures Surplus (Sweep back from Futures -> Spot & 70% BTC Vault convert)
-        elif surplus >= min_transfer:
-            logger.info(f"⚖️ EXECUTING AUTO-SWEEP: Transferring ${surplus} USDT surplus from Futures -> Spot")
-            transfer_res = self.executor.execute_futures_transfer(surplus, "futures_to_spot")
-            
-            # Convert 70% of swept surplus to BTC Vault
-            btc_alloc_usdt = surplus * 0.70
+        # Auto-accumulate BTC Vault from realized profit
+        if pnl_val > 0:
+            btc_alloc_usdt = pnl_val * 0.70
             if btc_alloc_usdt >= 5.0 and hasattr(self.executor, "place_spot_market_buy"):
                 btc_order = self.executor.place_spot_market_buy("BTCUSDT", btc_alloc_usdt)
-                logger.info(f"🪙 AUTO-SWEEP BTC VAULT CONVERT: {btc_order}")
+                logger.info(f"🪙 AUTO BTC VAULT CONVERT from profit: {btc_order}")
 
-            self.state["system"]["last_rebalance"] = datetime.utcnow().isoformat()
-            return {
-                "status": "rebalanced_swept",
-                "direction": "futures_to_spot",
-                "amount": surplus,
-                "transfer_result": transfer_res
-            }
-
-        self.state["system"]["last_rebalance"] = datetime.utcnow().isoformat()
-        return {"status": "balanced", "reason": f"Futures equity (${futures_current:.2f}) aligned with target (${futures_target:.2f})"}
+        return closed
 
     def run_learning_update(self) -> Dict:
         """Trigger learning update from recent trade history."""

@@ -152,25 +152,17 @@ def boot_system():
     save_state(state)
 
     # API credentials from environment only — never from state/Upstash
-    if mode == "live":
-        api_key = os.getenv("BINANCE_API_KEY", "").strip()
-        secret_key = os.getenv("BINANCE_SECRET_KEY", "").strip()
-    elif mode == "testnet":
-        testnet = True
-        api_key = os.getenv("BINANCE_TESTNET_API_KEY", "").strip()
-        secret_key = os.getenv("BINANCE_TESTNET_SECRET_KEY", "").strip()
-    else:
-        api_key = ""
-        secret_key = ""
+    api_key = os.getenv("BINANCE_API_KEY", "").strip()
+    secret_key = os.getenv("BINANCE_SECRET_KEY", "").strip()
 
     # Initialize services
-    market_data = MarketDataService(api_key, secret_key, testnet, mode)
+    market_data = MarketDataService(api_key, secret_key)
     memory_svc = MemoryService(app_config)
     portfolio_memory = load_memory("portfolio_memory")
     scanner = MarketScanner(market_data, app_config, {"portfolio_memory": portfolio_memory}, state=state)
     risk_mgr = RiskManager(app_config)
     portfolio_mgr = PortfolioManager(app_config, state, portfolio_memory)
-    executor = BinanceExecutor(api_key, secret_key, testnet, mode)
+    executor = BinanceExecutor(api_key, secret_key)
     news_svc = NewsService(
         os.getenv("CRYPTOPANIC_API_KEY", ""),
         os.getenv("NEWSAPI_KEY", "")
@@ -375,8 +367,7 @@ def debug_binance(verified: bool = Depends(verify_master_token)):
     balances = [b for b in data.get("balances", []) if float(b.get("free", 0)) + float(b.get("locked", 0)) > 0] if isinstance(data, dict) else []
     now = time.time()
     return {
-        "mode": ex.mode,
-        "testnet": ex.testnet,
+        "mode": "live",
         "base_url": ex.base_url,
         "api_key_len": len(ex.api_key),
         "api_key_masked": f"{ex.api_key[:6]}...{ex.api_key[-4:]}" if ex.api_key else "EMPTY",
@@ -610,33 +601,8 @@ class ModeSwitchPayload(BaseModel):
 def switch_mode(payload: ModeSwitchPayload, verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
-    mode = payload.mode.lower()
-    if mode not in ["paper", "testnet", "live"]:
-        raise HTTPException(400, "Invalid mode")
-    
-    testnet = (mode == "testnet")
-    api_key = payload.api_key or os.getenv("BINANCE_API_KEY", "")
-    secret_key = payload.secret_key or os.getenv("BINANCE_SECRET_KEY", "")
-    
-    orchestrator.set_mode(mode)
-    if hasattr(orchestrator, "executor"):
-        orchestrator.executor.base_url = "https://testnet.binance.vision" if testnet else "https://api1.binance.com"
-        orchestrator.executor.futures_url = "https://testnet.binancefuture.com" if testnet else "https://fapi.binance.com"
-        if payload.api_key and payload.secret_key:
-            orchestrator.executor.api_key = payload.api_key.strip()
-            orchestrator.executor.secret_key = payload.secret_key.strip()
-            orchestrator.executor.session.headers.update({"X-MBX-APIKEY": payload.api_key.strip()})
-            
-            # SECURITY: credentials are NOT persisted to state/Upstash — use env vars or .env only
-
-    if hasattr(orchestrator, "market_data"):
-        if payload.api_key:
-            orchestrator.market_data.api_key = payload.api_key.strip()
-            orchestrator.market_data.secret_key = payload.secret_key.strip()
-
-    state["system"]["mode"] = mode
-    save_state(state)
-    return {"status": "ok", "mode": mode, "testnet": testnet}
+    # Mainnet only — mode switch is disabled
+    return {"status": "ok", "mode": "live"}
 
 @app.get("/api/orders/open")
 def get_open_orders(verified: bool = Depends(verify_master_token)):

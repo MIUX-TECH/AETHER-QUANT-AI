@@ -72,11 +72,10 @@ class MarketDataService:
     Falls back gracefully; works with testnet.
     """
 
-    def __init__(self, api_key: str = "", secret_key: str = "",
-                 ):
+    def __init__(self, api_key: str = "", secret_key: str = ""):
         self.api_key = api_key
         self.secret_key = secret_key
-                        self.base_url = "https://api1.binance.com"
+        self.base_url = BINANCE_BASE
         self.futures_url = FUTURES_BASE
         self.session = requests.Session()
         self.session.headers.update({

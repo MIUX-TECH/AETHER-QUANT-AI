@@ -51,12 +51,9 @@ SLIPPAGE_BPS = 5  # 0.05% simulated slippage
 
 
 class BinanceExecutor:
-    def __init__(self, api_key: str = "", secret_key: str = "",
-                 testnet: bool = True, mode: str = "paper"):
+    def __init__(self, api_key: str = "", secret_key: str = ""):
         self.api_key = api_key
         self.secret_key = secret_key
-        self.testnet = testnet
-        self.mode = mode
         self.base_url = BINANCE_BASE
         self.futures_url = FUTURES_BASE
         self.session = requests.Session()
@@ -366,11 +363,6 @@ class BinanceExecutor:
         - Limits Take Profit at tp_price
         - Stops Loss at sl_stop_price with limit execution at sl_limit_price
         """
-                "symbol": symbol,
-                "status": "EXECUTING",
-                "mode": "paper"
-            }
-        
         sl_limit = sl_limit_price or sl_stop_price * 0.995
         params = {
             "symbol": symbol,
@@ -514,12 +506,8 @@ class BinanceExecutor:
             return self._balance_cache
 
         if not self.api_key or not self.secret_key:
-            if self.mode == "live" or not self.testnet:
-                self.api_key = os.getenv("BINANCE_API_KEY", "").strip()
-                self.secret_key = os.getenv("BINANCE_SECRET_KEY", "").strip()
-            else:
-                self.api_key = os.getenv("BINANCE_TESTNET_API_KEY", "").strip()
-                self.secret_key = os.getenv("BINANCE_TESTNET_SECRET_KEY", "").strip()
+            self.api_key = os.getenv("BINANCE_API_KEY", "").strip()
+            self.secret_key = os.getenv("BINANCE_SECRET_KEY", "").strip()
             if self.api_key:
                 self.session.headers.update({"X-MBX-APIKEY": self.api_key})
                 logger.info("Loaded API credentials from environment variables")
