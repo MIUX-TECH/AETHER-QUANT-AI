@@ -139,16 +139,11 @@ class ReportService:
         trades.sort(key=lambda t: t.get("closed_at", ""), reverse=True)
         return trades[:limit]
 
-    def _load_trades(self, months: int = 1) -> List[Dict]:
+    def _load_trades(self, months: int = 1) -> list:
+        return []
+
+    def _old_load_trades(self, months: int = 1) -> list:
         trades = []
-        now = datetime.utcnow()
-        for m in range(months):
-            dt = datetime(now.year, now.month, 1) - timedelta(days=30 * m)
-            path = get_history_path("trades", dt)
-            if path.exists():
-                data = read_json(path, default=[])
-                if isinstance(data, list):
-                    trades.extend(data)
         return trades
 
     def _avg_rr(self, trades: List[Dict]) -> float:
