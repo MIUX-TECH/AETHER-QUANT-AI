@@ -87,15 +87,16 @@ class GroqAIClient:
             "between 0.0 (extreme fear/bearish) and 1.0 (extreme euphoria/bullish), where 0.5 is neutral.\n\n"
             f"Headlines:\n" + "\n".join(f"- {h}" for h in headlines) + "\n\n"
             "Respond ONLY with a valid JSON object in this format:\n"
-            "{\"score\": 0.65, \"reason\": \"brief explanation\"}"
+            "{\"score\": 0.65, \"reason\": \"reason\"}\n"
+            "CRITICAL: 'reason' MUST BE 5 WORDS OR LESS to save tokens."
         )
 
         messages = [
-            {"role": "system", "content": "You are a crypto quantitative sentiment analyst. Output strict JSON only."},
+            {"role": "system", "content": "You are a crypto quantitative sentiment analyst. Output strict JSON only. Reason max 5 words."},
             {"role": "user", "content": prompt}
         ]
 
-        raw = self._call_groq(messages, max_tokens=150)
+        raw = self._call_groq(messages, max_tokens=80)
         if raw:
             try:
                 # Extract json block if surrounded by markdown
@@ -125,15 +126,17 @@ class GroqAIClient:
             f"- Faktor Bullish: {', '.join(bullish_factors[:4]) if bullish_factors else 'None'}\n"
             f"- Faktor Bearish: {', '.join(bearish_factors[:4]) if bearish_factors else 'None'}\n\n"
             "Determine if this entry is high quality or a potential fakeout. "
-            "Output ONLY a JSON block like: {\"approved\": true, \"confidence\": 0.80, \"reasoning\": \"Alasan singkat dalam Bahasa Indonesia\"}"
+            "Output ONLY a strict JSON block like: {\"approved\": true, \"confidence\": 0.80, \"reasoning\": \"Alasan\"}\n"
+            "CRITICAL RULE: The 'reasoning' field MUST BE 10 WORDS OR LESS. Be extremely concise to save tokens."
         )
 
         messages = [
-            {"role": "system", "content": "You are an institutional crypto quantitative analyst. Output JSON only."},
+            {"role": "system", "content": "You are an institutional crypto quantitative analyst. Output strict JSON only. Keep reason under 10 words."},
             {"role": "user", "content": prompt}
         ]
 
-        raw = self._call_groq(messages, max_tokens=150)
+        # Use 120 tokens max to safely accommodate the short JSON without truncating.
+        raw = self._call_groq(messages, max_tokens=120)
         if raw:
             try:
                 # Clean markdown blocks if any
@@ -166,15 +169,15 @@ class GroqAIClient:
 
         prompt = (
             f"A trade on {symbol} closed with a loss of {pnl:.2f}% (Reason: {reason}) under market regime '{regime}'.\n"
-            "Write a concise, 1-sentence trading lesson in Bahasa Indonesia to avoid this mistake in the future."
+            "Write a concise trading lesson (MAX 10 WORDS) in Bahasa Indonesia to avoid this mistake."
         )
 
         messages = [
-            {"role": "system", "content": "You are a professional trading mentor. Output 1 concise Indonesian sentence."},
+            {"role": "system", "content": "You are a professional trading mentor. Output max 10 words in Indonesian."},
             {"role": "user", "content": prompt}
         ]
 
-        raw = self._call_groq(messages, max_tokens=300)
+        raw = self._call_groq(messages, max_tokens=60)
         if raw:
             # Strip any residual think tags or quotes
             clean = re.sub(r"<think>.*?</think>", "", raw, flags=re.DOTALL).strip()
