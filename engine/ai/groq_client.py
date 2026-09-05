@@ -41,7 +41,9 @@ class GroqAIClient:
             "model": self.model,
             "messages": messages,
             "max_tokens": max_tokens,
-            "temperature": temperature
+            "temperature": temperature,
+            "reasoning_effort": "none",
+            "reasoning_format": "hidden"
         }
         import time as _time
         for attempt in range(self.max_retries + 1):
@@ -150,7 +152,20 @@ class GroqAIClient:
                         "reasoning": str(parsed.get("reasoning", "Validasi AI disetujui"))
                     }
             except Exception as e:
-                logger.warning(f"Failed to parse Groq trade validation JSON: {e} | raw={raw[:100]}")
+                import traceback
+                logger.warning(f"Failed to parse Groq trade validation JSON. Exception: {e}")
+                logger.warning(f"Raw response preview: {raw[:200]}")
+                logger.debug(f"Full traceback: {traceback.format_exc()}")
+                
+                # Identify specific failure mode
+                if "<think>" in raw and not json_match:
+                    logger.error("AI GATEKEEPER REJECTED: Model output truncated during <think> phase. max_tokens is too low.")
+                elif json_match is None:
+                    logger.error("AI GATEKEEPER REJECTED: Model returned response but no JSON block found.")
+                else:
+                    logger.error("AI GATEKEEPER REJECTED: JSON found but failed to parse.")
+        else:
+            logger.error("AI GATEKEEPER REJECTED: Groq API returned None (Timeout or Error caught in _call_groq).")
 
         # Fail-closed: if AI validation was requested but Groq API failed/timed out, skip entry for risk safety
         return {"approved": False, "confidence": 0.0, "reasoning": "AI validation unavailable / timed out — trade skipped for capital safety"}
