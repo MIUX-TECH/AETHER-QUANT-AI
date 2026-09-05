@@ -664,6 +664,13 @@ class TradingOrchestrator:
         side = position.get("side", "BUY")
         close_side = "SELL" if side == "BUY" else "BUY"
 
+        # Cek notional value (dust position)
+        notional_value = qty * price
+        if notional_value < 6.0:  # Binance minimum biasanya $5
+            logger.warning(f"Dust position detected for {symbol}: {qty} @ {price} = ${notional_value:.2f}. Bypassing API close and removing locally.")
+            del self.state["positions"][trade_type][symbol]
+            return {"status": "FILLED", "reason": f"DUST_CLEANUP ({reason})"}
+
         if trade_type == "spot":
             # Auto-redeem from Earn if balance is insufficient
             self.executor.ensure_spot_balance(symbol, qty)
@@ -847,7 +854,15 @@ class TradingOrchestrator:
             qty_spot = float(wallet_balances.get(base, {}).get("total", 0.0))
             qty_earn = float(wallet_balances.get(f"LD{base}", {}).get("total", 0.0))
             tot_qty = qty_spot + qty_earn
+            
+            # SOLUSI OTOMATIS PEMBERSIHAN POSISI MANUAL:
+            # Jika saldo koin asli di dompet/binance <= 0, namun di memory bot (state.json)
+            # masih ada catatan 'aktif', artinya koin telah dijual manual oleh manusia.
+            # Bot harus membuang koin tersebut dari memorinya agar tidak terjadi ghost error.
             if tot_qty <= 0:
+                if sym in spot_dict:
+                    logger.info(f"🧹 Culling ghost position for {sym} (sold externally)")
+                    del spot_dict[sym]
                 continue
 
             FALLBACK_PRICES = {

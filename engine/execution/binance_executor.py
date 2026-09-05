@@ -433,8 +433,8 @@ class BinanceExecutor:
 
                 last_err = {"http_status": r.status_code, "body": data}
                 code = data.get("code", 0) if isinstance(data, dict) else 0
-                if code in [-1121, -1100, -2010, -1013]:
-                    logger.error(f"Order rejected ({code}): {data}")
+                if code in [-1121, -1100, -2010, -1013, -6006, -6009, -6001]:
+                    logger.error(f"Order/Action rejected ({code}): {data}")
                     return r.status_code, data
 
                 logger.warning(f"{method} {cur_url} attempt {attempt+1} failed ({r.status_code}): {data}")
@@ -467,7 +467,7 @@ class BinanceExecutor:
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
         }
 
-        EMERGENCY_HOSTS = ["data-api.binance.vision", "api4.binance.com", "api3.binance.com", "api.binance.com"]
+        EMERGENCY_HOSTS = ["api4.binance.com", "api3.binance.com", "api2.binance.com", "api1.binance.com", "api.binance.com"]
         for host in EMERGENCY_HOSTS:
             try:
                 cur_url = re.sub(r"https://(api\d*|data-api)\.binance\.(com|vision)", f"https://{host}", full_url)

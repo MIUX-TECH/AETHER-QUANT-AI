@@ -723,13 +723,13 @@ def get_history(limit: int = 50, months: int = 1, symbol: str = None, strategy: 
     return orchestrator.report_service.get_trade_journal(symbol, strategy, limit, months)
 
 @app.get("/api/reports/performance")
-def get_performance(months: int = 1):
+def get_performance(months: int = 1, verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     return orchestrator.report_service.generate_performance_summary(months)
 
 @app.get("/api/reports/daily")
-def get_daily_report():
+def get_daily_report(verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     return orchestrator.run_daily_report()

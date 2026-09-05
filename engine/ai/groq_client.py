@@ -133,7 +133,7 @@ class GroqAIClient:
             {"role": "user", "content": prompt}
         ]
 
-        raw = self._call_groq(messages, max_tokens=350)
+        raw = self._call_groq(messages, max_tokens=150)
         if raw:
             try:
                 # Clean markdown blocks if any
