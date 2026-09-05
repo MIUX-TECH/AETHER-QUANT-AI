@@ -411,11 +411,15 @@ class BinanceExecutor:
 
         import re
         CLUSTER_HOSTS = ["api.binance.com", "api1.binance.com", "api2.binance.com", "api3.binance.com", "api4.binance.com"]
+        
+        # Fix 1: Only spot API supports these specific cluster hosts. fapi (futures) does not.
+        is_fapi = "fapi.binance" in full_url
+        max_attempts = 1 if is_fapi else len(CLUSTER_HOSTS)
+        
         last_err = None
-        for attempt in range(len(CLUSTER_HOSTS)):
-            # Rotate cluster endpoint on each attempt
+        for attempt in range(max_attempts):
             cur_url = full_url
-            if not self.testnet:
+            if not self.testnet and not is_fapi:
                 alt_host = CLUSTER_HOSTS[attempt % len(CLUSTER_HOSTS)]
                 cur_url = re.sub(r"https://(api\d*|data-api)\.binance\.(com|vision)", f"https://{alt_host}", full_url)
 
@@ -437,12 +441,22 @@ class BinanceExecutor:
                 if r.status_code == 200:
                     return 200, data
 
+                last_err = {"http_status": r.status_code, "body": data}
+
+                # Fix 2: Short-circuit on unauthorized / forbidden without retrying
+                if r.status_code in [401, 403]:
+                    logger.error(f"Host {cur_url} returned {r.status_code} (Unauthorized/Forbidden). No retry.")
+                    return r.status_code, data
+
+                # Fix 3: Handle 418/429 Rate Limits and IP Bans
                 if r.status_code in [418, 429]:
-                    logger.warning(f"Host {cur_url} returned {r.status_code}. Failover to next cluster endpoint...")
-                    last_err = {"http_status": r.status_code, "body": data}
+                    logger.warning(f"Host {cur_url} returned {r.status_code}. Rate limit / IP Ban triggered.")
+                    if is_fapi:
+                        # For futures, there is no cluster failover. Break instantly.
+                        break
+                    logger.warning("Failover to next cluster endpoint...")
                     continue
 
-                last_err = {"http_status": r.status_code, "body": data}
                 code = data.get("code", 0) if isinstance(data, dict) else 0
                 if code in [-1121, -1100, -2010, -1013, -6006, -6009, -6001]:
                     logger.error(f"Order/Action rejected ({code}): {data}")
@@ -453,13 +467,13 @@ class BinanceExecutor:
                 last_err = {"exception": str(e), "type": type(e).__name__}
                 logger.error(f"{method} {cur_url} attempt {attempt+1} exception: {e}")
 
-        # If ALL cluster hosts failed with 418/429, enter cooldown
+        # If we exited the loop with 418/429, enter immediate cooldown
         if last_err and last_err.get("http_status") in [418, 429]:
             self.cooldown_until = time.time() + 180
-            logger.error("🚨 All Binance cluster endpoints rate limited. Entering 180s cooldown.")
+            logger.error(f"🚨 Binance rate limit/IP Ban ({last_err.get('http_status')}) active. Entering 180s cooldown.")
             return last_err.get("http_status"), last_err.get("body", {})
 
-        return 500, {"error": "Max retries exceeded", "last_error": last_err}
+        return last_err.get("http_status", 500) if last_err else 500, {"error": "Max retries exceeded", "last_error": last_err}
 
     def _send_signed_emergency(self, method: str, url: str, params: dict = None) -> Tuple[int, Any]:
         """Emergency signed request that bypasses cooldown. Used only for closing positions."""
