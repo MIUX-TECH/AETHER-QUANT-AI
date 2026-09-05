@@ -216,33 +216,31 @@ def boot_system():
     logger.info(f"BINANCE-AI-TRADER booted. Mode: {mode}")
 
     # Start fast price stream for TP/SL monitoring
-    # [DISABLED] Step #2: Disabled to heavily reduce API weight & rate limits (REST polling issue).
-    # Will be converted to true WebSocket later.
     tracked_symbols = state.get("scanner", {}).get("symbols", [])
-    # if tracked_symbols:
-    #     price_stream = PriceStream(tracked_symbols, poll_interval=2.0, flash_crash_pct=0.05)
-    #
-    #     def _on_flash_crash(symbol, current_price, prev_price, drop_pct):
-    #         """Emergency close position on flash crash detection."""
-    #         if not orchestrator:
-    #             return
-    #         logger.warning(
-    #             f"🚨 PriceStream flash crash handler: {symbol} "
-    #             f"dropped {drop_pct:.1%} ({prev_price:.4f} → {current_price:.4f})"
-    #         )
-    #         for ttype in ["spot", "futures"]:
-    #             pos = orchestrator.state.get("positions", {}).get(ttype, {}).get(symbol)
-    #             if pos:
-    #                 try:
-    #                     orchestrator._close_position(
-    #                         symbol, pos, "flash_crash_emergency", current_price, ttype
-    #                     )
-    #                     logger.warning(f"Flash crash emergency close executed: {symbol} ({ttype})")
-    #                 except Exception as e:
-    #                     logger.error(f"Flash crash emergency close failed for {symbol}: {e}")
-    #
-    #     price_stream.on_flash_crash(_on_flash_crash)
-    #     price_stream.start()
+    if tracked_symbols:
+        price_stream = PriceStream(tracked_symbols, poll_interval=2.0, flash_crash_pct=0.05)
+
+        def _on_flash_crash(symbol, current_price, prev_price, drop_pct):
+            """Emergency close position on flash crash detection."""
+            if not orchestrator:
+                return
+            logger.warning(
+                f"🚨 PriceStream flash crash handler: {symbol} "
+                f"dropped {drop_pct:.1%} ({prev_price:.4f} → {current_price:.4f})"
+            )
+            for ttype in ["spot", "futures"]:
+                pos = orchestrator.state.get("positions", {}).get(ttype, {}).get(symbol)
+                if pos:
+                    try:
+                        orchestrator._close_position(
+                            symbol, pos, "flash_crash_emergency", current_price, ttype
+                        )
+                        logger.warning(f"Flash crash emergency close executed: {symbol} ({ttype})")
+                    except Exception as e:
+                        logger.error(f"Flash crash emergency close failed for {symbol}: {e}")
+
+        price_stream.on_flash_crash(_on_flash_crash)
+        price_stream.start()
 
 
 _boot_ready = threading.Event()
