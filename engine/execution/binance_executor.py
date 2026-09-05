@@ -17,7 +17,29 @@ import os
 
 logger = logging.getLogger(__name__)
 
-BINANCE_BASE = "https://api1.binance.com"
+BINANCE_ENDPOINTS = [
+    "https://api1.binance.com",
+    "https://api2.binance.com",
+    "https://api3.binance.com",
+    "https://api4.binance.com",
+    "https://data-api.binance.vision",
+    "https://api.binance.com",
+]
+
+def _detect_best_binance_endpoint() -> str:
+    """Ping each endpoint and return the first one that responds."""
+    for ep in BINANCE_ENDPOINTS:
+        try:
+            r = requests.get(f"{ep}/api/v3/ping", timeout=4)
+            if r.status_code == 200:
+                logger.info(f"Binance executor endpoint auto-detected: {ep}")
+                return ep
+        except Exception:
+            continue
+    logger.warning("No Binance endpoint responded, defaulting to api1.binance.com")
+    return "https://api1.binance.com"
+
+BINANCE_BASE = _detect_best_binance_endpoint()
 BINANCE_TESTNET = "https://testnet.binance.vision"
 FUTURES_BASE = "https://fapi.binance.com"
 FUTURES_TESTNET = "https://testnet.binancefuture.com"
