@@ -594,6 +594,7 @@ def get_wallet(verified: bool = Depends(verify_master_token)):
     # Sort primary & valuable assets first
     items.sort(key=lambda x: (x["category"] == "earn", x["underlying"] not in PRIMARY_ASSETS, -x["usd_value"]))
 
+    final_total = round(total_usd, 2)
 
     # Update orchestrator state memory & sync positions
     try:
