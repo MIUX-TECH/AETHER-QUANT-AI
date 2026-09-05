@@ -69,6 +69,10 @@ class BinanceExecutor:
         self._exchange_info = None
         self._exchange_info_time = 0.0
         self._symbol_rules = {}
+        self._futures_exchange_info = None
+        self._futures_exchange_info_time = 0.0
+        self._futures_symbol_rules = {}
+        self._futures_mode_checked = False
         self._cache_ttl = 6.0  # seconds
         self.cooldown_until = 0.0
         self._sync_time()
@@ -130,6 +134,44 @@ class BinanceExecutor:
     # ============================================================
     # SPOT ORDERS
     # ============================================================
+
+    def get_futures_symbol_rules(self, symbol: str) -> Dict:
+        """Fetch and cache LOT_SIZE, MIN_NOTIONAL and PRICE_FILTER for USD-M Futures symbol."""
+        now = time.time()
+        if symbol in self._futures_symbol_rules and (now - self._futures_exchange_info_time) <= 14400:
+            return self._futures_symbol_rules[symbol]
+
+        if not self._futures_exchange_info or (now - self._futures_exchange_info_time) > 14400:
+            try:
+                r = requests.get(f"{self.futures_url}/fapi/v1/exchangeInfo", timeout=10, headers={"User-Agent": "Mozilla/5.0"})
+                if r.status_code == 200:
+                    data = r.json()
+                    self._futures_exchange_info = data
+                    self._futures_exchange_info_time = now
+                    for s in data.get("symbols", []):
+                        sym = s.get("symbol")
+                        rules = {
+                            "stepSize": "0.001",
+                            "minQty": "0.001",
+                            "minNotional": 5.0,
+                            "tickSize": "0.01",
+                            "status": s.get("status", "TRADING")
+                        }
+                        for f in s.get("filters", []):
+                            if f.get("filterType") == "LOT_SIZE":
+                                rules["stepSize"] = f.get("stepSize", rules["stepSize"])
+                                rules["minQty"] = f.get("minQty", rules["minQty"])
+                            elif f.get("filterType") == "MIN_NOTIONAL":
+                                rules["minNotional"] = float(f.get("notional", rules["minNotional"]))
+                            elif f.get("filterType") == "PRICE_FILTER":
+                                rules["tickSize"] = f.get("tickSize", rules["tickSize"])
+                        self._futures_symbol_rules[sym] = rules
+            except Exception as e:
+                logger.error(f"Failed to fetch futures exchange info: {e}")
+
+        return self._futures_symbol_rules.get(symbol, {
+            "stepSize": "0.001", "minQty": "0.001", "minNotional": 5.0, "tickSize": "0.01", "status": "TRADING"
+        })
 
     def place_spot_market_buy(self, symbol: str, usdt_amount: float,
                                price: float = 0) -> Dict:
@@ -231,9 +273,9 @@ class BinanceExecutor:
     # LIVE ORDER EXECUTION (with retry)
     # ============================================================
 
-    def _format_qty(self, symbol: str, qty: float) -> str:
+    def _format_qty(self, symbol: str, qty: float, futures: bool = False) -> str:
         """Format quantity to comply with Binance LOT_SIZE stepSize rules using precise decimal math."""
-        rules = self.get_symbol_rules(symbol)
+        rules = self.get_futures_symbol_rules(symbol) if futures else self.get_symbol_rules(symbol)
         step_size_str = rules.get("stepSize", "0.0001")
         min_qty_str = rules.get("minQty", "0.0001")
         try:
@@ -262,9 +304,9 @@ class BinanceExecutor:
             truncated = math.floor(qty * factor) / factor
             return f"{truncated:.{decimals}f}"
 
-    def _format_price(self, symbol: str, price: float) -> str:
+    def _format_price(self, symbol: str, price: float, futures: bool = False) -> str:
         """Format price to comply with Binance PRICE_FILTER tickSize rules."""
-        rules = self.get_symbol_rules(symbol)
+        rules = self.get_futures_symbol_rules(symbol) if futures else self.get_symbol_rules(symbol)
         tick_size_str = rules.get("tickSize", "0.01")
         try:
             from decimal import Decimal, ROUND_DOWN
@@ -327,13 +369,13 @@ class BinanceExecutor:
             "symbol": symbol,
             "side": side,
             "type": order_type,
-            "quantity": self._format_qty(symbol, qty),
+            "quantity": self._format_qty(symbol, qty, futures=True),
             "newClientOrderId": client_oid,
             "timestamp": int(time.time() * 1000),
             "recvWindow": 5000
         }
         if order_type == "LIMIT":
-            params["price"] = self._format_price(symbol, price)
+            params["price"] = self._format_price(symbol, price, futures=True)
             params["timeInForce"] = "GTC"
         if reduce_only:
             params["reduceOnly"] = "true"
@@ -359,6 +401,28 @@ class BinanceExecutor:
         if res.get("code") == -4046 or res.get("error", "").find("-4046") != -1:
             return {"status": "success", "msg": "Margin type already set"}
         return res
+
+    def enforce_futures_one_way_mode(self) -> bool:
+        """Ensure futures account is in One-Way mode, switch it if it's in Hedge mode."""
+        if not self.api_key or not self.secret_key:
+            return False
+        
+        status, data = self._send_signed("GET", f"{self.futures_url}/fapi/v1/positionSide/dual")
+        if status == 200 and isinstance(data, dict):
+            if data.get("dualSidePosition", False):
+                logger.info("Futures account is in Hedge Mode. Attempting to switch to One-Way Mode...")
+                params = {"dualSidePosition": "false", "timestamp": int(time.time() * 1000)}
+                p_status, p_data = self._send_signed("POST", f"{self.futures_url}/fapi/v1/positionSide/dual", params)
+                if p_status == 200:
+                    logger.info("Successfully switched to One-Way Mode.")
+                    return True
+                elif p_data.get("code") == -4059: # No need to change
+                    return True
+                else:
+                    logger.error(f"Failed to switch to One-Way Mode: {p_data}")
+                    return False
+            return True
+        return False
 
     def _live_cancel(self, symbol: str, order_id: str, futures: bool = False) -> Dict:
         params = {
@@ -573,6 +637,9 @@ class BinanceExecutor:
         
         if status == 200 and isinstance(data, dict):
             self._futures_cache = data
+            if not self._futures_mode_checked:
+                self.enforce_futures_one_way_mode()
+                self._futures_mode_checked = True
             return data
         return self._futures_cache or {}
 

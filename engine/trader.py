@@ -668,6 +668,14 @@ class TradingOrchestrator:
         """Take TP1 partial profits (40%), raise SL to BEP, and activate 60% runner."""
         partial_pct = self.config.get("spot", {}).get("partial_tp_pct", 0.40)
         partial_qty = position.get("qty", 0) * partial_pct
+        
+        # Futures Notional Check: The closing order AND the remaining position must both clear MIN_NOTIONAL (~$5.00)
+        if trade_type == "futures":
+            close_notional = partial_qty * current_price
+            remaining_notional = (position.get("qty", 0) - partial_qty) * current_price
+            if close_notional < 5.1 or remaining_notional < 5.1:
+                logger.warning(f"Skipping Partial TP for {symbol}: Position too small (Close: ${close_notional:.2f}, Rem: ${remaining_notional:.2f})")
+                return
 
         if trade_type == "spot":
             self.executor.ensure_spot_balance(symbol, partial_qty)
