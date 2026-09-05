@@ -252,7 +252,8 @@ def _boot_in_thread():
         boot_system()
         _boot_ready.set()
     except Exception as e:
-        _boot_error = str(e)
+        import traceback
+        _boot_error = f"{e}\n{traceback.format_exc()}"
         _boot_ready.set()
         logger.error(f"Boot failed: {e}")
 
@@ -336,6 +337,7 @@ def health_check():
     booted = _boot_ready.is_set()
     return {
         "status": "running" if booted and not _boot_error else "starting" if not booted else "error",
+        "error": _boot_error,
         "timestamp": datetime.utcnow().isoformat(),
         "scheduler_running": scheduler.is_running if scheduler else False,
     }
