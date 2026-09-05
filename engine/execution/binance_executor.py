@@ -614,6 +614,110 @@ class BinanceExecutor:
         logger.error(f"❌ SAPI Futures Transfer FAILED ({status}): {data}")
         return {"status": "FAILED", "error": str(data), "http_status": status}
 
+    # ============================================================
+    # BINANCE EARN AUTO-REDEEM
+    # ============================================================
+
+    def get_earn_positions(self, asset: str = None) -> List[Dict]:
+        """Fetch active Flexible Simple Earn positions."""
+        if self.mode == "paper":
+            return []
+        params = {"size": 100}
+        if asset:
+            params["asset"] = asset.upper()
+        status, data = self._send_signed("GET", f"{self.base_url}/sapi/v1/simple-earn/flexible/position", params)
+        if status == 200 and isinstance(data, dict):
+            return data.get("rows", [])
+        return []
+
+    def redeem_from_earn(self, product_id: str, amount: float, asset: str) -> Dict:
+        """Redeem specific amount from Simple Earn to Spot wallet."""
+        if self.mode == "paper":
+            logger.info(f"[PAPER] Redeemed {amount} {asset} from Earn to Spot")
+            return {"status": "SUCCESS", "simulated": True}
+        
+        # Binance requires string formatting for amount
+        amt_str = f"{float(amount):.8f}".rstrip("0").rstrip(".")
+        params = {
+            "productId": product_id,
+            "amount": amt_str,
+            "destAccount": "SPOT"
+        }
+        logger.info(f"Attempting to redeem {amt_str} {asset} from Earn (ProductID: {product_id})")
+        status, data = self._send_signed("POST", f"{self.base_url}/sapi/v1/simple-earn/flexible/redeem", params)
+        
+        if status == 200:
+            logger.info(f"✅ Earn Redeem SUCCESS: {amt_str} {asset} to Spot")
+            # Invalidate balance cache so next read is fresh
+            self._balance_cache = None
+            return {"status": "SUCCESS", "data": data}
+            
+        logger.error(f"❌ Earn Redeem FAILED ({status}): {data}")
+        return {"status": "FAILED", "error": str(data), "http_status": status}
+
+    def ensure_spot_balance(self, symbol: str, required_qty: float) -> bool:
+        """
+        Check if Spot wallet has required_qty of base asset.
+        If not, check Simple Earn and auto-redeem the exact missing amount.
+        Returns True if balance is sufficient (or successfully redeemed), False otherwise.
+        """
+        if self.mode == "paper":
+            return True
+            
+        # Extract base asset from symbol (e.g., BTC from BTCUSDT)
+        base_asset = symbol.replace("USDT", "") if symbol.endswith("USDT") else symbol
+        
+        # 1. Check current Spot balance (force fresh fetch by bypassing cache)
+        self._balance_cache = None
+        balances = self.get_account_balances()
+        spot_free = float(balances.get(base_asset, {}).get("free", 0.0))
+        
+        if spot_free >= required_qty * 0.999:  # Allow tiny dust tolerance
+            return True
+            
+        missing_qty = required_qty - spot_free
+        logger.warning(f"Insufficient Spot balance for {base_asset}. Have {spot_free:.6f}, need {required_qty:.6f}. Missing: {missing_qty:.6f}")
+        
+        # 2. Check Simple Earn positions
+        earn_positions = self.get_earn_positions(asset=base_asset)
+        if not earn_positions:
+            logger.error(f"No Simple Earn positions found for {base_asset} to cover shortfall.")
+            return False
+            
+        # 3. Find flexible position with enough balance
+        redeemed = False
+        for pos in earn_positions:
+            total_amt = float(pos.get("totalAmount", 0))
+            product_id = pos.get("productId")
+            
+            if total_amt > 0:
+                # Redeem either exactly what's missing, or max available if less than missing
+                redeem_amt = min(missing_qty, total_amt)
+                res = self.redeem_from_earn(product_id, redeem_amt, base_asset)
+                
+                if res.get("status") == "SUCCESS":
+                    missing_qty -= redeem_amt
+                    redeemed = True
+                    if missing_qty <= 0.00001:
+                        break
+        
+        # 4. If redeemed, wait for balance to reflect (Binance usually takes 1-3 seconds)
+        if redeemed:
+            logger.info("Waiting for Earn redemption to reflect in Spot balance...")
+            for i in range(15):  # Wait up to 7.5 seconds
+                time.sleep(0.5)
+                self._balance_cache = None
+                new_bals = self.get_account_balances()
+                new_spot_free = float(new_bals.get(base_asset, {}).get("free", 0.0))
+                if new_spot_free >= required_qty * 0.999:
+                    logger.info(f"✅ Spot balance updated successfully. New balance: {new_spot_free:.6f} {base_asset}")
+                    return True
+            
+            logger.error(f"Timeout waiting for Spot balance to update after redemption.")
+            return False
+            
+        return False
+
     def emergency_close_position(self, symbol: str, qty: float, side: str = "SELL",
                                    trade_type: str = "spot") -> Dict:
         """Emergency position close that bypasses rate-limit cooldown.

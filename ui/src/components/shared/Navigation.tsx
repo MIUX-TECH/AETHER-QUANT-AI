@@ -5,6 +5,7 @@ import {
   BarChart3, Brain, Newspaper, Settings, BookOpen, AlertTriangle,
   ChevronDown, Globe, ShieldCheck, Zap
 } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { useStore } from '../../store/useStore'
 
 export const TABS = [
@@ -14,6 +15,8 @@ export const TABS = [
   { id: 'portfolio', label: 'Portofolio', icon: Briefcase },
   { id: 'history', label: 'Riwayat', icon: History },
   { id: 'ai', label: 'Log AI', icon: Brain },
+  { id: 'news', label: 'Berita & Sentimen', icon: Newspaper },
+  { id: 'reports', label: 'Laporan', icon: BarChart3 },
   { id: 'memory', label: 'Memori', icon: BookOpen },
   { id: 'settings', label: 'Pengaturan', icon: Settings },
 ]
@@ -21,8 +24,12 @@ export const TABS = [
 export const MOBILE_PRIMARY_TABS = ['dashboard', 'scanner', 'positions', 'portfolio', 'history']
 
 export default function Navigation() {
-  const { activeTab, setActiveTab, system, risk, positions, switchTradingMode, loading } = useStore()
+  const { system, risk, positions, switchTradingMode, loading } = useStore()
   const [showModeDropdown, setShowModeDropdown] = useState(false)
+  const location = useLocation()
+  const navigate = useNavigate()
+  
+  const activeTab = location.pathname.substring(1) || 'dashboard'
 
   const hasDanger = risk?.kill_switch || risk?.capital_preservation
   const totalPosCount = (positions?.spot?.length || 0) + (positions?.futures?.length || 0)
@@ -131,7 +138,7 @@ export default function Navigation() {
               <button
                 key={tab.id}
                 className={`sidebar-item ${active ? 'active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => navigate(`/${tab.id}`)}
               >
                 <Icon size={14} />
                 <span>{tab.label}</span>
@@ -169,7 +176,7 @@ export default function Navigation() {
             <button
               key={id}
               className={`mobile-nav-item ${active ? 'active' : ''}`}
-              onClick={() => setActiveTab(id)}
+              onClick={() => navigate(`/${id}`)}
             >
               <Icon size={16} />
               <span>{tab.label}</span>

@@ -9,6 +9,9 @@ import PortfolioPage from './components/portfolio/PortfolioPage'
 import HistoryPage from './components/history/HistoryPage'
 import AIDecisionsPage from './components/ai/AIDecisionsPage'
 import MemoryPage from './components/memory/MemoryPage'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import NewsPage from './components/ai/NewsPage'
+import ReportsPage from './components/reports/ReportsPage'
 import SettingsPage from './components/settings/SettingsPage'
 import {
   Lock, Unlock, RefreshCw, Zap, ShieldAlert, ChevronDown,
@@ -16,19 +19,9 @@ import {
 } from 'lucide-react'
 import { api, getAdminToken, setAdminToken } from './utils/api'
 
-const PAGES: Record<string, React.ComponentType> = {
-  dashboard: DashboardPage,
-  scanner: ScannerPage,
-  positions: PositionsPage,
-  portfolio: PortfolioPage,
-  history: HistoryPage,
-  ai: AIDecisionsPage,
-  memory: MemoryPage,
-  settings: SettingsPage,
-}
-
 export default function App() {
-  const { activeTab, refresh, system, portfolio, risk, wallet, switchTradingMode, triggerScan, loading } = useStore()
+  const { refresh, system, portfolio, risk, wallet, switchTradingMode, triggerScan, loading } = useStore()
+  const location = useLocation()
   const [showTokenModal, setShowTokenModal] = useState(false)
   const [tokenInput, setTokenInput] = useState(getAdminToken())
   const [isUnlocked, setIsUnlocked] = useState(false)
@@ -69,8 +62,6 @@ export default function App() {
       setTokenChecking(false)
     }
   }
-
-  const PageComponent = PAGES[activeTab] || DashboardPage
 
   const totalEquity = Number(wallet?.total_equity_usd !== undefined && wallet?.total_equity_usd !== null ? wallet.total_equity_usd : (portfolio?.total_equity || 0))
   const unrealPnl = Number(portfolio?.unrealized_pnl || 0)
@@ -171,7 +162,20 @@ export default function App() {
         {/* Dynamic Page Viewport */}
         <main className="page-viewport">
           <div className="page-container">
-            <PageComponent />
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/dashboard" element={<DashboardPage />} />
+              <Route path="/scanner" element={<ScannerPage />} />
+              <Route path="/positions" element={<PositionsPage />} />
+              <Route path="/portfolio" element={<PortfolioPage />} />
+              <Route path="/history" element={<HistoryPage />} />
+              <Route path="/ai" element={<AIDecisionsPage />} />
+              <Route path="/memory" element={<MemoryPage />} />
+              <Route path="/settings" element={<SettingsPage />} />
+              <Route path="/news" element={<NewsPage />} />
+              <Route path="/reports" element={<ReportsPage />} />
+              <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            </Routes>
           </div>
         </main>
       </div>

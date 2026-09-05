@@ -9,6 +9,7 @@ export interface SystemState {
   safe_mode: boolean
   last_scan: string | null
   auto_enabled?: boolean
+  fear_greed?: any
 }
 
 export interface Portfolio {
@@ -87,7 +88,6 @@ export interface AppStore {
   loading: boolean
   error: string | null
   lastRefresh: Date | null
-  activeTab: string
 
   // Actions
   refresh: () => Promise<void>
@@ -102,7 +102,6 @@ export interface AppStore {
   triggerScan: () => Promise<void>
   switchTradingMode: (mode: string, api_key?: string, secret_key?: string) => Promise<void>
   control: (action: string, opts?: any) => Promise<void>
-  setActiveTab: (tab: string) => void
 }
 
 const defaultPortfolio: Portfolio = {
@@ -165,7 +164,6 @@ export const useStore = create<AppStore>((set, get) => ({
   loading: false,
   error: null,
   lastRefresh: null,
-  activeTab: 'dashboard',
 
   refresh: async () => {
     set({ loading: true, error: null })
@@ -302,6 +300,4 @@ export const useStore = create<AppStore>((set, get) => ({
       set({ error: e.message })
     }
   },
-
-  setActiveTab: (tab: string) => set({ activeTab: tab }),
 }))

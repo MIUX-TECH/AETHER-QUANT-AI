@@ -8,9 +8,11 @@ import {
   Flame, Zap, Crosshair
 } from 'lucide-react'
 import { api } from '../../utils/api'
+import { useNavigate } from 'react-router-dom'
 
 export default function PositionsPage() {
-  const { positions, wallet, refresh, loading, setActiveTab } = useStore()
+  const { positions, wallet, refresh, loading } = useStore()
+  const navigate = useNavigate()
   const [closingSymbol, setClosingSymbol] = useState<string | null>(null)
   const [closingAll, setClosingAll] = useState(false)
   const [actionMessage, setActionMessage] = useState<string | null>(null)
@@ -136,7 +138,7 @@ export default function PositionsPage() {
               title={`Saldo Koin Spot Binance (${holdings.length})`}
               subtitle="Koin fisik yang tersimpan di dompet Spot Binance"
             />
-            <button className="btn btn-ghost btn-xs" onClick={() => setActiveTab('portfolio')} style={{ fontSize: 9.5 }}>
+            <button className="btn btn-ghost btn-xs" onClick={() => navigate('/portfolio')} style={{ fontSize: 9.5 }}>
               Portofolio <ArrowUpRight size={9} />
             </button>
           </div>

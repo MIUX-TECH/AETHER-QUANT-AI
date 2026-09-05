@@ -16,6 +16,14 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+from engine.sentiment.fear_greed import FearGreedService
+from engine.strategy.macro_tp import MacroCycleTPController
+from engine.strategy.buyback_matrix import BuybackMatrix
+from engine.strategy.grid_dca import GridDCAVault
+from engine.strategy.mean_reversion import MeanReversionStrategy
+from engine.strategy.momentum_breakout import MomentumBreakoutStrategy
+from engine.strategy.halving_cycle import HalvingCycleManager
+
 class TradingOrchestrator:
     def __init__(self,
                  market_data,
@@ -37,6 +45,7 @@ class TradingOrchestrator:
         self.news_service = news_service
         self.memory_service = memory_service
         self.report_service = report_service
+        self.fear_greed = FearGreedService()
         self.config = config
         self.state = state if isinstance(state, dict) else {}
         # Ensure required state sub-dictionaries exist to prevent KeyError crashes
@@ -46,10 +55,70 @@ class TradingOrchestrator:
         self.state.setdefault("positions", {"spot": {}, "futures": {}})
         self.state.setdefault("risk", {})
         self.ai_client = ai_client
+        self.macro_tp = MacroCycleTPController(self.state)
+        self.buyback_matrix = BuybackMatrix(self.state)
+        self.grid_dca = GridDCAVault(self.state, self.config)
+        self.halving_cycle = HalvingCycleManager()
         self.trade_logger = logging.getLogger("trade")
         self.decision_logger = logging.getLogger("decision")
         self._scan_results: Dict = {}
         self._closed_today: List[Dict] = []
+        self._last_macro_check: float = 0
+
+    def run_macro_cycle(self) -> Dict:
+        """
+        Evaluate macro strategies (TP, Buyback, Grid DCA, Halving Cycle).
+        Runs every 4 hours.
+        """
+        logger.info("Starting Macro Cycle Check...")
+        try:
+            fng_data = self.fear_greed.get_index()
+            fng_val = fng_data.get("value", 50)
+            
+            # 1. Update cycle phase
+            cycle_phase, cycle_name = self.halving_cycle.determine_phase()
+            self.state["system"]["cycle_phase"] = cycle_phase
+            logger.info(f"Current Halving Phase: {cycle_name}")
+            
+            # Get BTC price for checks
+            if not self._scan_results or "BTCUSDT" not in self._scan_results:
+                return {"status": "skipped", "reason": "No scan results for BTCUSDT"}
+                
+            btc_scan = self._scan_results["BTCUSDT"]
+            btc_price = btc_scan.get("price", 0)
+            
+            # Placeholder for ATH (usually queried from historical data)
+            btc_ath = 73750.0  # Temporary placeholder based on recent ATH
+            
+            # Fetch indicators from scan
+            inds = btc_scan.get("indicators", {})
+            ind_1d = inds.get("1d", {})
+            ema200 = ind_1d.get("ema200", 0)
+            
+            # 2. Evaluate Macro TP
+            ema200_dist = max(0.0, (btc_price - ema200) / ema200 * 100) if ema200 > 0 else 0.0
+            tp_res = self.macro_tp.evaluate(fng_val, ema200_dist)
+            if tp_res.get("trigger"):
+                self.decision_logger.info(f"MACRO TP TRIGGERED: {tp_res['tier']} -> {tp_res['reason']}")
+                # Execute TP ... (simplified logging for now)
+                
+            # 3. Evaluate Buyback Matrix
+            bb_res = self.buyback_matrix.evaluate(fng_val, btc_price, btc_ath, ema200)
+            if bb_res.get("trigger"):
+                self.decision_logger.info(f"BUYBACK TRIGGERED: {bb_res['tier']} -> {bb_res['reason']}")
+                # Execute Buyback ... (simplified logging for now)
+                
+            # 4. Evaluate Grid DCA
+            is_euphoria = (fng_val >= 85)
+            dca_res = self.grid_dca.evaluate(btc_price, btc_ath, is_paused=is_euphoria)
+            if dca_res.get("trigger"):
+                self.decision_logger.info(f"GRID DCA TRIGGERED: Buy ${dca_res['buy_amount_usdt']} BTC")
+                
+            return {"status": "ok", "macro_tp": tp_res, "buyback": bb_res, "grid_dca": dca_res}
+            
+        except Exception as e:
+            logger.error(f"Error in macro cycle: {e}")
+            return {"status": "error", "message": str(e)}
 
     def run_scan_cycle(self) -> Dict:
         """
@@ -69,17 +138,26 @@ class TradingOrchestrator:
 
         symbols = self.state.get("scanner", {}).get("symbols", ["BTCUSDT", "ETHUSDT", "SOLUSDT", "XRPUSDT"])
 
+        # Fetch Fear & Greed Index
+        try:
+            fng_data = self.fear_greed.get_index()
+            fng_score = fng_data.get("normalized", 0.5)
+            self.state["system"]["fear_greed"] = fng_data
+        except Exception as e:
+            logger.warning(f"FearGreed integration failed: {e}")
+            fng_score = 0.5
+
         # Get sentiment
         try:
             sentiment_data = self.news_service.get_sentiment_scores(symbols)
-            # Extract float scores for the scanner; keep full metadata
-            sentiment = {s: d["score"] for s, d in sentiment_data.items()}
+            # Mix News Sentiment and Fear & Greed (50/50 mix or pass directly)
+            sentiment = {s: (d["score"] + fng_score) / 2 for s, d in sentiment_data.items()}
             unavailable = [s for s, d in sentiment_data.items() if not d.get("data_available")]
             if unavailable:
                 logger.warning(f"Sentiment data unavailable for: {', '.join(unavailable)}")
         except Exception as e:
             logger.warning(f"Sentiment fetch failed: {e}")
-            sentiment = {s: 0.5 for s in symbols}
+            sentiment = {s: fng_score for s in symbols}
 
         # Get coin memories
         coin_memories = {}
@@ -126,6 +204,9 @@ class TradingOrchestrator:
         # --- STEP 1: Monitor existing positions ---
         exits = self._monitor_positions()
 
+        # --- STEP 1.5: Macro strategy check (every 4 hours) ---
+        macro_result = self._maybe_run_macro_strategies()
+
         # --- STEP 2: Check entry signals (only if we have fresh scan) ---
         if not self._scan_results:
             return {"status": "no_scan_data", "exits": exits, "entries": []}
@@ -152,7 +233,185 @@ class TradingOrchestrator:
                     if result.get("executed"):
                         executed.append(result)
 
-        return {"status": "ok", "exits": exits, "entries": executed}
+        return {"status": "ok", "exits": exits, "entries": executed, "macro": macro_result}
+
+    def _maybe_run_macro_strategies(self) -> Optional[Dict]:
+        """Run macro TP and buyback checks every 4 hours."""
+        now = time.time()
+        macro_interval = 4 * 3600  # 4 hours
+        if now - self._last_macro_check < macro_interval:
+            return None
+        self._last_macro_check = now
+        return self.run_macro_strategy_cycle()
+
+    def run_macro_strategy_cycle(self) -> Dict:
+        """
+        Full macro strategy evaluation:
+        1. Fetch Fear & Greed and BTC EMA200/ATH data
+        2. Evaluate MacroCycleTP for euphoria-based portfolio sells
+        3. Evaluate BuybackMatrix for deep-fear-based buys
+        """
+        result = {"macro_tp": None, "buyback": None}
+
+        # Gather macro inputs
+        fng_data = self.state.get("system", {}).get("fear_greed", {})
+        fng_value = fng_data.get("value", 50)
+
+        btc_scan = self._scan_results.get("BTCUSDT", {})
+        btc_price = btc_scan.get("price", 0)
+        if not btc_price:
+            btc_price = self.market_data.get_price("BTCUSDT") or 0
+        if not btc_price:
+            logger.debug("Macro strategy skipped: no BTC price available")
+            return result
+
+        # EMA200 from 1d indicators
+        btc_ind_1d = btc_scan.get("indicators", {}).get("1d", {})
+        ema200 = btc_ind_1d.get("ema200")
+        if not ema200:
+            # Fallback: try computing from candles
+            candles = self.market_data.get_klines("BTCUSDT", "1d", 220)
+            if candles and len(candles) >= 200:
+                from engine.analysis.indicators import ema as calc_ema
+                closes = [c["close"] for c in candles]
+                ema_vals = calc_ema(closes, 200)
+                ema200 = ema_vals[-1] if ema_vals and ema_vals[-1] is not None else None
+
+        ema200_dist_pct = 0.0
+        if ema200 and ema200 > 0:
+            ema200_dist_pct = ((btc_price - ema200) / ema200) * 100.0
+
+        # --- Macro TP evaluation ---
+        tp_eval = self.macro_tp.evaluate(fng_value, ema200_dist_pct)
+        result["macro_tp"] = tp_eval
+
+        if tp_eval.get("trigger"):
+            self._execute_macro_tp(tp_eval)
+
+        # --- Buyback evaluation ---
+        ath_price = self._get_btc_ath()
+        bb_eval = self.buyback_matrix.evaluate(fng_value, btc_price, ath_price, ema200)
+        result["buyback"] = bb_eval
+
+        if bb_eval.get("trigger"):
+            self._execute_buyback(bb_eval, btc_price)
+
+        # Persist state changes from cooldown tracking
+        self.state["macro_tp"] = self.macro_tp._tp_state
+        self.state["buyback_matrix"] = self.buyback_matrix._bb_state
+
+        return result
+
+    def _get_btc_ath(self) -> float:
+        """Get BTC all-time high from state or default."""
+        ath = self.state.get("macro_tp", {}).get("btc_ath", 0)
+        btc_price = self.market_data.get_price("BTCUSDT") or 0
+        if btc_price > ath:
+            ath = btc_price
+            self.state.setdefault("macro_tp", {})["btc_ath"] = ath
+        return ath if ath > 0 else 109000.0  # fallback BTC ATH
+
+    def _execute_macro_tp(self, tp_eval: Dict):
+        """Sell a fraction of spot portfolio based on macro TP tier."""
+        sell_pct = tp_eval["sell_pct"]
+        tier = tp_eval["tier"]
+        mode = self.state.get("system", {}).get("mode", "paper")
+
+        positions = self.state.get("positions", {}).get("spot", {})
+        if not positions:
+            return
+
+        for symbol, pos in list(positions.items()):
+            if pos.get("status") != "active":
+                continue
+            qty = pos.get("qty", 0)
+            sell_qty = qty * sell_pct
+            if sell_qty <= 0:
+                continue
+
+            price = self.market_data.get_price(symbol) or pos.get("current_price", 0)
+            if not price:
+                continue
+
+            sell_usdt = sell_qty * price
+            if sell_usdt < 5.0:
+                continue
+
+            if mode in ["paper", "testnet", "live"]:
+                self.executor.ensure_spot_balance(symbol, sell_qty)
+                order = self.executor.place_spot_market_sell(symbol, sell_qty, price)
+                if order.get("status") == "FILLED":
+                    pos["qty"] = qty - sell_qty
+                    pos["position_usdt"] = pos["qty"] * price
+                    self.state["positions"]["spot"][symbol] = pos
+                    self._log_decision(
+                        symbol, f"macro_tp_{tier}",
+                        {"signal": "MACRO_TP", "confidence": 0.95},
+                        f"Macro TP [{tier}] sold {sell_pct:.0%} ({sell_qty:.6f}) @ {price:.4f}"
+                    )
+                    self.trade_logger.info(
+                        f"MACRO TP [{tier.upper()}] {symbol} | sold {sell_pct:.0%} | "
+                        f"qty={sell_qty:.6f} | price={price:.4f} | usdt={sell_usdt:.2f}"
+                    )
+
+    def _execute_buyback(self, bb_eval: Dict, btc_price: float):
+        """Deploy cash into BTC based on buyback matrix tier."""
+        deploy_pct = bb_eval["deploy_pct"]
+        tier = bb_eval["tier"]
+        mode = self.state.get("system", {}).get("mode", "paper")
+        total_equity = self.state.get("portfolio", {}).get("total_equity", 0)
+        deploy_usdt = total_equity * deploy_pct
+
+        if deploy_usdt < 5.0:
+            return
+
+        available = self.portfolio_manager.get_available_for_trade("spot", "BTCUSDT")
+        deploy_usdt = min(deploy_usdt, available)
+        if deploy_usdt < 5.0:
+            return
+
+        if mode in ["paper", "testnet", "live"]:
+            order = self.executor.place_spot_market_buy("BTCUSDT", deploy_usdt, btc_price)
+            if order.get("status") == "FILLED":
+                fill_qty = float(order.get("executedQty", 0)) or (deploy_usdt / btc_price)
+                fill_price = float(order.get("price", 0)) or btc_price
+                sizing = {
+                    "position_usdt": deploy_usdt,
+                    "position_qty": fill_qty,
+                    "sl_price": round(fill_price * 0.90, 4),
+                    "tp_price": round(fill_price * 1.20, 4),
+                    "trailing_stop_pct": 0.05,
+                    "leverage": 1,
+                    "entry_price": fill_price,
+                }
+                signal = {"signal": "BUYBACK", "confidence": 0.90, "strategy": f"buyback_{tier}"}
+                position = self.portfolio_manager.open_position(
+                    "BTCUSDT", "BUY", "spot", order, sizing, signal
+                )
+                existing = self.state.get("positions", {}).get("spot", {}).get("BTCUSDT")
+                if existing and existing.get("status") == "active":
+                    # Merge into existing position (average up)
+                    old_qty = existing.get("qty", 0)
+                    old_entry = existing.get("entry_price", fill_price)
+                    new_qty = old_qty + fill_qty
+                    new_entry = ((old_entry * old_qty) + (fill_price * fill_qty)) / new_qty if new_qty > 0 else fill_price
+                    existing["qty"] = new_qty
+                    existing["entry_price"] = round(new_entry, 4)
+                    existing["position_usdt"] = round(new_qty * fill_price, 2)
+                    self.state["positions"]["spot"]["BTCUSDT"] = existing
+                else:
+                    self.state.setdefault("positions", {}).setdefault("spot", {})["BTCUSDT"] = position
+
+                self._log_decision(
+                    "BTCUSDT", f"buyback_{tier}",
+                    {"signal": "BUYBACK", "confidence": 0.90},
+                    f"Buyback [{tier}] deployed ${deploy_usdt:.2f} @ {fill_price:.4f}"
+                )
+                self.trade_logger.info(
+                    f"BUYBACK [{tier.upper()}] BTCUSDT | deployed ${deploy_usdt:.2f} | "
+                    f"qty={fill_qty:.8f} | price={fill_price:.4f} | "
+                    f"F&G={bb_eval.get('fng')} | ATH drop={bb_eval.get('ath_drop_pct'):.1f}%"
+                )
 
     def _try_spot_entry(self, symbol: str, scan: Dict, score: Dict) -> Dict:
         """Attempt a spot long entry."""
@@ -381,6 +640,9 @@ class TradingOrchestrator:
         partial_pct = self.config.get("spot", {}).get("partial_tp_pct", 0.40)
         partial_qty = position.get("qty", 0) * partial_pct
 
+        if trade_type == "spot":
+            self.executor.ensure_spot_balance(symbol, partial_qty)
+            
         order = self.executor.place_spot_market_sell(symbol, partial_qty, current_price)
         if order.get("status") == "FILLED":
             position["qty"] = position.get("qty", 0) * (1 - partial_pct)
@@ -403,6 +665,8 @@ class TradingOrchestrator:
         close_side = "SELL" if side == "BUY" else "BUY"
 
         if trade_type == "spot":
+            # Auto-redeem from Earn if balance is insufficient
+            self.executor.ensure_spot_balance(symbol, qty)
             order = self.executor.place_spot_market_sell(symbol, qty, price)
         else:
             order = self.executor.place_futures_order(
@@ -711,7 +975,21 @@ class TradingOrchestrator:
         ind_1h = indicators.get("1h", {})
         ind_4h = indicators.get("4h", {})
         sr = scan.get("support_resistance", {})
+        
+        fng_val = self.state.get("system", {}).get("fear_greed", {}).get("value", 50)
+        regime = scan.get("regime", {}).get("regime", "unknown")
 
+        # 1. Mean Reversion Check
+        mr_eval = MeanReversionStrategy.evaluate(ind_1h, fng_val, regime)
+        if mr_eval.get("trigger"):
+            return "mean_reversion"
+
+        # 2. Momentum Breakout Check
+        mb_eval = MomentumBreakoutStrategy.evaluate(ind_1h, sr)
+        if mb_eval.get("trigger"):
+            return "momentum_breakout"
+
+        # 3. Fallbacks / Defaults
         if sr.get("at_support"):
             return "pullback"
         struct = ind_4h.get("market_structure", {})

@@ -195,6 +195,7 @@ def boot_system():
 
     scheduler.register("scan", orchestrator.run_scan_cycle, sched_cfg.get("scan_interval", 60))
     scheduler.register("execute", orchestrator.run_execution_cycle, sched_cfg.get("execute_interval", sched_cfg.get("scan_interval", 60)))
+    scheduler.register("macro_strategy", orchestrator.run_macro_strategy_cycle, sched_cfg.get("macro_strategy_interval", 14400))
     scheduler.register("rebalance", orchestrator.run_rebalance, sched_cfg.get("rebalance_interval", 3600))
     scheduler.register("learning", orchestrator.run_learning_update, sched_cfg.get("learning_update_interval", 1800))
     scheduler.register("report", orchestrator.run_daily_report, sched_cfg.get("report_interval", 86400))
@@ -438,6 +439,42 @@ def get_positions(verified: bool = Depends(verify_master_token)):
     if not orchestrator:
         raise HTTPException(503)
     return orchestrator.get_full_status()["positions"]
+
+@app.get("/api/earn/positions")
+def get_earn_positions(verified: bool = Depends(verify_master_token)):
+    if not orchestrator:
+        raise HTTPException(503)
+    try:
+        return orchestrator.executor.get_earn_positions()
+    except Exception as e:
+        logger.error(f"Earn positions error: {e}")
+        return []
+
+class EarnRedeemRequest(BaseModel):
+    product_id: str
+    amount: float
+    asset: str
+
+@app.post("/api/earn/redeem")
+def earn_redeem(req: EarnRedeemRequest, verified: bool = Depends(verify_master_token)):
+    if not orchestrator:
+        raise HTTPException(503)
+    try:
+        res = orchestrator.executor.redeem_from_earn(req.product_id, req.amount, req.asset)
+        return res
+    except Exception as e:
+        logger.error(f"Earn redeem error: {e}")
+        raise HTTPException(500, detail=str(e))
+
+@app.get("/api/fear-greed")
+def get_fear_greed():
+    if not orchestrator:
+        raise HTTPException(503)
+    try:
+        return orchestrator.fear_greed.get_index()
+    except Exception as e:
+        logger.error(f"F&G error: {e}")
+        return {"value": 50, "class": "Neutral", "normalized": 0.5}
 
 @app.get("/api/wallet")
 def get_wallet(verified: bool = Depends(verify_master_token)):

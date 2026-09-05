@@ -12,12 +12,14 @@ import {
   Wallet, PieChart
 } from 'lucide-react'
 import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts'
+import { useNavigate } from 'react-router-dom'
 
 export default function DashboardPage() {
   const {
     portfolio, risk, system, scanResults, scanner, closedToday,
-    positions, wallet, history, refresh, triggerScan, loading, setActiveTab
+    positions, wallet, history, refresh, triggerScan, loading
   } = useStore()
+  const navigate = useNavigate()
   const [chartRange, setChartRange] = useState<'1D' | '7D' | '30D' | 'ALL'>('1D')
 
   const allSpot = positions?.spot || []
@@ -41,7 +43,8 @@ export default function DashboardPage() {
   const btcEarn = wallet?.assets?.find((a: any) => a.asset === 'LDBTC')?.total || 0
   const btcVaultStack = Number(portfolio?.btc_vault?.btc_stack || 0)
   const totalBtcStack = Math.max(btcVaultStack, btcSpot + btcEarn)
-  const btcPrice = Number(wallet?.assets?.find((a: any) => a.asset === 'BTC')?.price || 81500)
+  const btcAsset = wallet?.assets?.find((a: any) => a.asset === 'BTC')
+  const btcPrice = Number(btcAsset?.price || 0)
   const btcValuationUSD = totalBtcStack * btcPrice
 
   // Top signals list
@@ -70,6 +73,9 @@ export default function DashboardPage() {
     : dominantRegime === 'trending_down'
     ? `Pasar terdeteksi TRENDING DOWN. Sistem mengaktifkan mode proteksi modal ketat dan akumulasi DCA BTC bertahap.`
     : `Kondisi pasar RANGING / SIDEWAYS. Algoritma mean-reversion aktif dengan target TP1 ketat dan trailing stop 1.2% untuk mengunci profit secepatnya.`
+
+  const fng = system?.fear_greed || { value: 50, class: 'Neutral', normalized: 0.5 }
+  const fngColor = fng.value >= 75 ? 'var(--bull)' : fng.value <= 25 ? 'var(--bear)' : fng.value >= 55 ? 'var(--accent)' : fng.value <= 45 ? 'var(--warn)' : 'var(--text-muted)'
 
   return (
     <div className="flex flex-col gap-3">
@@ -119,40 +125,74 @@ export default function DashboardPage() {
         />
       </div>
 
-      {/* Qwen 27B AI Live Copilot Card */}
-      <div
-        className="card p-3"
-        style={{
-          background: 'linear-gradient(135deg, rgba(163,230,53,0.03), rgba(0,240,255,0.02), var(--bg-card))',
-          border: '1px solid var(--accent-glow)'
-        }}
-      >
-        <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
-          <div className="flex items-center gap-2">
-            <div style={{ width: 22, height: 22, borderRadius: 5, background: 'var(--accent-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--accent)' }}>
-              <Brain size={13} style={{ color: 'var(--accent)' }} />
+      {/* 2-Col Grid: AI Copilot & F&G Index */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        {/* Qwen 27B AI Live Copilot Card */}
+        <div
+          className="card p-3"
+          style={{
+            background: 'linear-gradient(135deg, rgba(163,230,53,0.03), rgba(0,240,255,0.02), var(--bg-card))',
+            border: '1px solid var(--accent-glow)',
+            display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
+          }}
+        >
+          <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
+            <div className="flex items-center gap-2">
+              <div style={{ width: 22, height: 22, borderRadius: 5, background: 'var(--accent-glow)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--accent)' }}>
+                <Brain size={13} style={{ color: 'var(--accent)' }} />
+              </div>
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '-0.01em' }}>Qwen 27B AI Copilot</span>
+              <span className="badge badge-lime" style={{ fontSize: 8 }}>GATEKEEPER AKTIF</span>
             </div>
-            <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '-0.01em' }}>Qwen 27B AI Copilot</span>
-            <span className="badge badge-lime" style={{ fontSize: 8 }}>GATEKEEPER AKTIF</span>
+            <div className="flex items-center gap-2">
+              <span className="badge badge-muted" style={{ fontSize: 8.5 }}>
+                REZIM: {dominantRegime.toUpperCase()}
+              </span>
+              <button className="btn btn-lime btn-xs" onClick={triggerScan} disabled={loading} style={{ padding: '3px 8px', fontSize: 9.5 }}>
+                <Zap size={10} /> Scan
+              </button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="badge badge-muted" style={{ fontSize: 8.5 }}>
-              REZIM: {dominantRegime.toUpperCase()}
-            </span>
-            <button className="btn btn-lime btn-xs" onClick={triggerScan} disabled={loading} style={{ padding: '3px 8px', fontSize: 9.5 }}>
-              <Zap size={10} /> Scan
-            </button>
+          <p style={{ fontSize: 10.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
+            {aiCommentary}
+          </p>
+        </div>
+
+        {/* Fear & Greed Index Card */}
+        <div className="card p-3 flex items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <Activity size={13} style={{ color: fngColor }} />
+              <span style={{ fontSize: 12, fontWeight: 800, letterSpacing: '-0.01em', color: 'var(--text-primary)' }}>Fear & Greed Index</span>
+            </div>
+            <div style={{ fontSize: 24, fontWeight: 800, fontFamily: 'var(--font-display)', color: fngColor, lineHeight: 1.1 }}>
+              {fng.value} <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>/ 100</span>
+            </div>
+            <div style={{ fontSize: 10.5, fontFamily: 'var(--font-mono)', color: fngColor, fontWeight: 700, marginTop: 2, textTransform: 'uppercase' }}>
+              {fng.class}
+            </div>
+            <p style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 4, maxWidth: 200 }}>
+              {fng.value >= 85 ? 'Macro TP (Jual Vault) aktif' : fng.value <= 20 ? 'Buyback Matrix (DCA Beli) aktif' : 'Alokasi portofolio berjalan normal.'}
+            </p>
+          </div>
+          
+          <div style={{ width: 80, height: 80, position: 'relative' }}>
+            {/* Simple CSS Gauge */}
+            <svg viewBox="0 0 100 50" style={{ overflow: 'visible' }}>
+              <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke="var(--bg-border)" strokeWidth="12" strokeLinecap="round" />
+              <path d="M 10 50 A 40 40 0 0 1 90 50" fill="none" stroke={fngColor} strokeWidth="12" strokeLinecap="round" strokeDasharray="125.6" strokeDashoffset={125.6 - (fng.normalized * 125.6)} style={{ transition: 'stroke-dashoffset 1s ease' }} />
+            </svg>
+            <div style={{ position: 'absolute', bottom: -5, left: '50%', transform: 'translateX(-50%)', fontSize: 10, fontFamily: 'var(--font-mono)', fontWeight: 700, color: fngColor }}>
+              {fng.value}
+            </div>
           </div>
         </div>
-        <p style={{ fontSize: 10.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', lineHeight: 1.45 }}>
-          {aiCommentary}
-        </p>
       </div>
 
       {/* Grid: Equity Growth Curve & 3-Bucket Hedge Fund Card */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-3">
         {/* Equity Curve Chart */}
-        <div className="card p-3 lg:col-span-2">
+        <div className="card p-3 xl:col-span-2">
           <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
             <SectionHeader title="Kurva Pertumbuhan Ekuitas" subtitle="Pergerakan nilai portofolio berdasarkan transaksi riil" />
             <div className="flex items-center gap-1 bg-deep p-0.5 rounded border border-border">
@@ -225,14 +265,56 @@ export default function DashboardPage() {
                   <div style={{ width: '10%', height: '100%', background: 'var(--warn)' }} />
                 </div>
               </div>
+
+              {/* Buyback Reserve Addition */}
+              <div className="mt-2 pt-2 border-t border-border">
+                <div className="flex justify-between items-center mb-1" style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)' }}>
+                  <span style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    💰 Buyback Reserve
+                  </span>
+                  <span style={{ fontWeight: 600, color: 'var(--bull)' }}>$0.00</span>
+                </div>
+                <div style={{ fontSize: 8.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>
+                  Siaga untuk DCA Crash & Extreme Fear (F&G &lt; 20)
+                </div>
+              </div>
             </div>
           </div>
 
           <div className="mt-3 pt-2 border-t border-border flex justify-between items-center">
             <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Deviasi Drift: 5.0%</span>
-            <button className="btn btn-ghost btn-xs" onClick={() => setActiveTab('portfolio')} style={{ fontSize: 9.5 }}>
+            <button className="btn btn-ghost btn-xs" onClick={() => navigate('/portfolio')} style={{ fontSize: 9.5 }}>
               Portofolio <ArrowUpRight size={9} />
             </button>
+          </div>
+        </div>
+
+        {/* BTC Halving Cycle Phase Card */}
+        <div className="card p-3 flex flex-col justify-between" style={{ borderLeft: '3px solid var(--accent)' }}>
+          <div>
+            <SectionHeader title="Siklus Halving BTC" subtitle="Strategi makro berbasis kuartal" />
+            <div className="mt-2">
+              <div className="flex items-center justify-between mb-1" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Fase Saat Ini:</span>
+                <span className="badge badge-lime" style={{ fontSize: 8 }}>MID-CYCLE</span>
+              </div>
+              <div className="flex items-center justify-between mb-2" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Halving Berikutnya:</span>
+                <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>~Apr 2028</span>
+              </div>
+              
+              <div style={{ background: 'var(--bg-deep)', padding: 8, borderRadius: 6, border: '1px solid var(--bg-border)' }}>
+                <div style={{ fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontWeight: 700, marginBottom: 2 }}>
+                  ACTION PLAN:
+                </div>
+                <div style={{ fontSize: 9.5, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  Akumulasi Grid DCA aktif. Target BTC Vault dipertahankan 60-70%. Tidak ada Macro TP sampai Extreme Greed post-halving.
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 pt-2 border-t border-border flex justify-between items-center">
+            <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>Block: ~901,245</span>
           </div>
         </div>
       </div>
@@ -244,7 +326,7 @@ export default function DashboardPage() {
             title={`Posisi Bot Terbuka (${allPositions.length})`}
             subtitle="Monitoring real-time harga entry, target take profit, dan trailing stop"
           />
-          <button className="btn btn-ghost btn-xs" onClick={() => setActiveTab('positions')} style={{ fontSize: 10 }}>
+          <button className="btn btn-ghost btn-xs" onClick={() => navigate('/positions')} style={{ fontSize: 10 }}>
             Kelola Posisi <ArrowUpRight size={10} />
           </button>
         </div>
@@ -298,7 +380,7 @@ export default function DashboardPage() {
             title="Radar Sinyal 8 Pilar Teratas"
             subtitle="Hasil pemindaian kuantitatif terkonfirmasi Qwen AI"
           />
-          <button className="btn btn-ghost btn-xs" onClick={() => setActiveTab('scanner')} style={{ fontSize: 10 }}>
+          <button className="btn btn-ghost btn-xs" onClick={() => navigate('/scanner')} style={{ fontSize: 10 }}>
             Buka Pemindai <ArrowUpRight size={10} />
           </button>
         </div>

@@ -137,6 +137,95 @@ def atr(candles: List[Dict], period: int = 14) -> List[float]:
     return result[-len(candles):]
 
 
+def supertrend(candles: List[Dict], period: int = 10, multiplier: float = 3.0) -> Tuple[List[float], List[str]]:
+    """
+    SuperTrend Indicator.
+    Returns (supertrend_values, supertrend_directions)
+    Direction is 'bullish' or 'bearish'.
+    """
+    if len(candles) < period:
+        return [None]*len(candles), [None]*len(candles)
+        
+    atr_vals = atr(candles, period)
+    st_vals = [None] * len(candles)
+    st_dir = [None] * len(candles)
+    
+    # Initialize basic upper and lower bands
+    basic_upper = [None] * len(candles)
+    basic_lower = [None] * len(candles)
+    
+    for i in range(len(candles)):
+        h, l = candles[i]["high"], candles[i]["low"]
+        hl2 = (h + l) / 2
+        a = atr_vals[i]
+        
+        if a is not None:
+            basic_upper[i] = hl2 + multiplier * a
+            basic_lower[i] = hl2 - multiplier * a
+            
+    # Calculate SuperTrend
+    final_upper = [None] * len(candles)
+    final_lower = [None] * len(candles)
+    
+    for i in range(period, len(candles)):
+        if i == period:
+            final_upper[i] = basic_upper[i]
+            final_lower[i] = basic_lower[i]
+            st_vals[i] = final_upper[i]
+            st_dir[i] = "bearish"
+            continue
+            
+        # Upper band logic
+        if basic_upper[i] < final_upper[i-1] or candles[i-1]["close"] > final_upper[i-1]:
+            final_upper[i] = basic_upper[i]
+        else:
+            final_upper[i] = final_upper[i-1]
+            
+        # Lower band logic
+        if basic_lower[i] > final_lower[i-1] or candles[i-1]["close"] < final_lower[i-1]:
+            final_lower[i] = basic_lower[i]
+        else:
+            final_lower[i] = final_lower[i-1]
+            
+        # Direction and value logic
+        prev_st = st_vals[i-1]
+        prev_dir = st_dir[i-1]
+        curr_close = candles[i]["close"]
+        
+        if prev_dir == "bearish" and curr_close > final_upper[i]:
+            st_dir[i] = "bullish"
+            st_vals[i] = final_lower[i]
+        elif prev_dir == "bullish" and curr_close < final_lower[i]:
+            st_dir[i] = "bearish"
+            st_vals[i] = final_upper[i]
+        else:
+            st_dir[i] = prev_dir
+            st_vals[i] = final_lower[i] if st_dir[i] == "bullish" else final_upper[i]
+            
+    return st_vals, st_dir
+
+
+def obv(candles: List[Dict]) -> List[float]:
+    """On-Balance Volume (OBV)."""
+    if not candles:
+        return []
+        
+    result = [0.0]
+    for i in range(1, len(candles)):
+        curr_c = candles[i]["close"]
+        prev_c = candles[i-1]["close"]
+        vol = candles[i]["volume"]
+        
+        if curr_c > prev_c:
+            result.append(result[-1] + vol)
+        elif curr_c < prev_c:
+            result.append(result[-1] - vol)
+        else:
+            result.append(result[-1])
+            
+    return result
+
+
 def adx(candles: List[Dict], period: int = 14) -> Tuple[List[float], List[float], List[float]]:
     """ADX, +DI, -DI."""
     n = len(candles)
@@ -404,6 +493,121 @@ def market_structure(candles: List[Dict]) -> Dict:
     }
 
 
+def calculate_supertrend(candles: List[Dict], period: int = 10,
+                         multiplier: float = 3.0) -> List[Dict]:
+    """SuperTrend indicator.
+
+    Returns a list (same length as candles) of dicts:
+        {"direction": +1 or -1, "upper_band": float, "lower_band": float, "value": float}
+    +1 = Bullish (price above band), -1 = Bearish (price below band).
+    Entries before enough data are None.
+    """
+    n = len(candles)
+    if n < period + 1:
+        return [None] * n
+
+    atr_vals = atr(candles, period)
+
+    upper_basic = [None] * n
+    lower_basic = [None] * n
+    for i in range(n):
+        if atr_vals[i] is not None:
+            hl2 = (candles[i]["high"] + candles[i]["low"]) / 2
+            upper_basic[i] = hl2 + multiplier * atr_vals[i]
+            lower_basic[i] = hl2 - multiplier * atr_vals[i]
+
+    upper_band = [None] * n
+    lower_band = [None] * n
+    direction = [None] * n
+    st_value = [None] * n
+
+    # Find first valid index
+    first = None
+    for i in range(n):
+        if upper_basic[i] is not None:
+            first = i
+            break
+    if first is None:
+        return [None] * n
+
+    upper_band[first] = upper_basic[first]
+    lower_band[first] = lower_basic[first]
+    direction[first] = 1
+    st_value[first] = lower_band[first]
+
+    for i in range(first + 1, n):
+        if upper_basic[i] is None:
+            continue
+
+        prev_close = candles[i - 1]["close"]
+
+        # Lower band: ratchet up only
+        if lower_basic[i] > (lower_band[i - 1] or 0) or prev_close < (lower_band[i - 1] or 0):
+            lower_band[i] = lower_basic[i]
+        else:
+            lower_band[i] = lower_band[i - 1] or lower_basic[i]
+
+        # Upper band: ratchet down only
+        if upper_basic[i] < (upper_band[i - 1] or float('inf')) or prev_close > (upper_band[i - 1] or float('inf')):
+            upper_band[i] = upper_basic[i]
+        else:
+            upper_band[i] = upper_band[i - 1] or upper_basic[i]
+
+        close = candles[i]["close"]
+        prev_dir = direction[i - 1] or 1
+
+        if prev_dir == 1:
+            direction[i] = -1 if close < lower_band[i] else 1
+        else:
+            direction[i] = 1 if close > upper_band[i] else -1
+
+        st_value[i] = lower_band[i] if direction[i] == 1 else upper_band[i]
+
+    result = [None] * n
+    for i in range(n):
+        if direction[i] is not None:
+            result[i] = {
+                "direction": direction[i],
+                "upper_band": upper_band[i],
+                "lower_band": lower_band[i],
+                "value": st_value[i],
+            }
+    return result
+
+
+def calculate_obv(candles: List[Dict]) -> List[float]:
+    """On-Balance Volume. Returns cumulative OBV series (same length as candles)."""
+    if not candles:
+        return []
+    result = [0.0]
+    for i in range(1, len(candles)):
+        close = candles[i]["close"]
+        prev_close = candles[i - 1]["close"]
+        vol = candles[i]["volume"]
+        if close > prev_close:
+            result.append(result[-1] + vol)
+        elif close < prev_close:
+            result.append(result[-1] - vol)
+        else:
+            result.append(result[-1])
+    return result
+
+
+def _obv_trend(obv_vals: List[float], lookback: int = 10) -> str:
+    """Classify recent OBV direction as 'rising', 'falling', or 'neutral'."""
+    if len(obv_vals) < lookback:
+        return "neutral"
+    recent = obv_vals[-lookback:]
+    slope = recent[-1] - recent[0]
+    avg_vol = max(abs(recent[-1]), abs(recent[0]), 1.0)
+    ratio = slope / avg_vol
+    if ratio > 0.05:
+        return "rising"
+    elif ratio < -0.05:
+        return "falling"
+    return "neutral"
+
+
 def compute_all_indicators(candles: List[Dict], config: Dict = None) -> Dict:
     """Master function: compute all indicators for a candle set."""
     config = config or {}
@@ -415,6 +619,8 @@ def compute_all_indicators(candles: List[Dict], config: Dict = None) -> Dict:
             "atr": 0.0, "atr_pct": 0.0,
             "adx": 0.0, "pdi": 0.0, "mdi": 0.0,
             "bb_upper": 0.0, "bb_middle": 0.0, "bb_lower": 0.0, "bb_width": 0.0,
+            "supertrend_direction": 0, "supertrend_value": 0.0,
+            "obv": 0.0, "obv_ema": 0.0, "obv_trend": "neutral",
             "volume": {"avg": 0, "current": 0, "ratio": 1.0, "spike": False, "trend": "neutral", "taker_buy_pct": 0},
             "support_resistance": {}, "candle_patterns": {}, "market_structure": {"trend": "unknown"},
             "above_ema9": False, "above_ema21": False, "above_ema50": False, "above_ema200": False,
@@ -437,6 +643,9 @@ def compute_all_indicators(candles: List[Dict], config: Dict = None) -> Dict:
     atr_vals = atr(candles, config.get("atr_period", 14))
     adx_vals, pdi_vals, mdi_vals = adx(candles, config.get("adx_period", 14))
     bb_upper, bb_mid, bb_lower = bollinger_bands(closes, config.get("bb_period", 20), config.get("bb_std", 2))
+    st_vals, st_dirs = supertrend(candles, config.get("supertrend_period", 10),
+                                  config.get("supertrend_multiplier", 3.0))
+    obv_vals = obv(candles)
 
     def last(lst):
         for v in reversed(lst):
@@ -470,6 +679,11 @@ def compute_all_indicators(candles: List[Dict], config: Dict = None) -> Dict:
         "bb_middle": last(bb_mid),
         "bb_lower": bb_lo,
         "bb_width": bb_width,
+        "supertrend_direction": last(st_dirs),
+        "supertrend_value": last(st_vals) or 0.0,
+        "obv": obv_vals[-1] if obv_vals else 0.0,
+        "obv_ema": (ema(obv_vals, 20)[-1] if len(obv_vals) >= 20 else None) or 0.0,
+        "obv_trend": "up" if len(obv_vals) > 1 and obv_vals[-1] > obv_vals[-2] else "down" if len(obv_vals) > 1 and obv_vals[-1] < obv_vals[-2] else "flat",
         "volume": volume_profile(candles, config.get("volume_ma_period", 20)),
         "support_resistance": support_resistance(candles),
         "candle_patterns": candle_patterns(candles),

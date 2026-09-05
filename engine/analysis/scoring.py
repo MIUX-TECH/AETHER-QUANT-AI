@@ -37,12 +37,12 @@ class ScoringEngine:
     def __init__(self, config: Dict = None, memory: Dict = None):
         self.config = config or {}
         self.memory = memory or {}
-        self.weights = config.get("scoring", {}).get("weights", {
+        self.weights = self.config.get("scoring", {}).get("weights", {
             "trend": 0.20, "momentum": 0.18, "structure": 0.15,
             "volume": 0.12, "htf_alignment": 0.15, "volatility": 0.08,
             "sentiment": 0.07, "risk": 0.05
         })
-        self.thresholds = config.get("scoring", {}).get("thresholds", {
+        self.thresholds = self.config.get("scoring", {}).get("thresholds", {
             "STRONG_BUY": 0.82, "BUY": 0.68, "HOLD": 0.52,
             "REDUCE": 0.42, "SELL": 0.32, "SHORT": 0.22
         })
@@ -79,33 +79,63 @@ class ScoringEngine:
         trend_score = 0.0
         trend_notes = []
 
-        # EMA alignment
+        # --- EMA sub-score (60% of trend pillar) ---
+        ema_sub = 0.0
         if ind_1d.get("ema_aligned_bullish"):
-            trend_score += 0.35
+            ema_sub += 0.35
             bullish_factors.append("Daily EMA fully bullish aligned (9>21>50)")
         elif ind_1d.get("above_ema200"):
-            trend_score += 0.15
+            ema_sub += 0.15
             bullish_factors.append("Price above EMA200 daily")
 
         if ind_4h.get("ema_aligned_bullish"):
-            trend_score += 0.30
+            ema_sub += 0.30
             bullish_factors.append("4H EMA aligned bullish")
         elif ind_4h.get("above_ema50"):
-            trend_score += 0.15
+            ema_sub += 0.15
 
         if ind_1h.get("ema_aligned_bullish"):
-            trend_score += 0.20
+            ema_sub += 0.20
             bullish_factors.append("1H EMA bullish")
 
-        # EMA bearish overrides
         if ind_1d.get("ema_aligned_bearish"):
-            trend_score -= 0.40
+            ema_sub -= 0.40
             bearish_factors.append("Daily EMA bearish aligned — macro downtrend")
         if ind_4h.get("ema_aligned_bearish"):
-            trend_score -= 0.30
+            ema_sub -= 0.30
             bearish_factors.append("4H EMA bearish aligned")
 
-        trend_score = max(0, min(1, trend_score + 0.15))  # small base
+        ema_sub = max(0, min(1, ema_sub + 0.15))
+
+        # --- SuperTrend sub-score (40% of trend pillar) ---
+        st_sub = 0.5  # neutral baseline
+        st_dir_4h = ind_4h.get("supertrend_direction", 0)
+        st_dir_1h = ind_1h.get("supertrend_direction", 0)
+        st_dir_1d = ind_1d.get("supertrend_direction", 0)
+
+        if st_dir_1d == "bullish":
+            st_sub += 0.25
+            bullish_factors.append("SuperTrend Daily: Bullish")
+        elif st_dir_1d == "bearish":
+            st_sub -= 0.25
+            bearish_factors.append("SuperTrend Daily: Bearish")
+
+        if st_dir_4h == "bullish":
+            st_sub += 0.20
+            bullish_factors.append("SuperTrend 4H: Bullish")
+        elif st_dir_4h == "bearish":
+            st_sub -= 0.20
+            bearish_factors.append("SuperTrend 4H: Bearish")
+
+        if st_dir_1h == "bullish":
+            st_sub += 0.10
+        elif st_dir_1h == "bearish":
+            st_sub -= 0.10
+
+        st_sub = max(0.0, min(1.0, st_sub))
+
+        trend_score = ema_sub * 0.60 + st_sub * 0.40
+        trend_score = max(0.0, min(1.0, trend_score))
 
         # =====================================
         # 2. MOMENTUM SCORE (18%)
@@ -187,34 +217,74 @@ class ScoringEngine:
         # =====================================
         # 4. VOLUME SCORE (12%)
         # =====================================
-        volume_score = 0.5
+        vol_sub = 0.5  # existing volume sub-score (70% of volume pillar)
 
         vol_1h = ind_1h.get("volume", {})
         vol_4h = ind_4h.get("volume", {})
 
         if vol_1h.get("spike") and ind_1h.get("above_ema21"):
-            volume_score += 0.30
+            vol_sub += 0.30
             bullish_factors.append(f"Volume spike {vol_1h.get('ratio', 1):.1f}x avg with price above EMA21")
         elif vol_1h.get("spike"):
-            volume_score += 0.10
+            vol_sub += 0.10
             neutral_factors.append("Volume spike detected (direction unclear)")
 
         if vol_1h.get("trend") == "increasing":
-            volume_score += 0.15
+            vol_sub += 0.15
             bullish_factors.append("Volume trending up")
         elif vol_1h.get("trend") == "decreasing" and ind_1h.get("above_ema21"):
-            volume_score -= 0.10
+            vol_sub -= 0.10
             bearish_factors.append("Price rising but volume declining — weak move")
 
         taker_buy = vol_1h.get("taker_buy_pct", 0.5)
         if taker_buy > 0.60:
-            volume_score += 0.10
+            vol_sub += 0.10
             bullish_factors.append(f"Taker buy pressure high ({taker_buy:.0%})")
         elif taker_buy < 0.40:
-            volume_score -= 0.10
+            vol_sub -= 0.10
             bearish_factors.append(f"Sell pressure dominant ({1-taker_buy:.0%} taker sell)")
 
-        volume_score = max(0, min(1, volume_score))
+        vol_sub = max(0.0, min(1.0, vol_sub))
+
+        # --- OBV sub-score (30% of volume pillar) ---
+        obv_sub = 0.5  # neutral baseline
+
+        obv_trend_4h = ind_4h.get("obv_trend", "neutral")
+        obv_trend_1h = ind_1h.get("obv_trend", "neutral")
+
+        # OBV trend alignment with price
+        price_up_4h = ind_4h.get("above_ema21", False)
+        price_up_1h = ind_1h.get("above_ema21", False)
+
+        if obv_trend_4h == "up" and price_up_4h:
+            obv_sub += 0.25
+            bullish_factors.append("OBV 4H rising with price — accumulation confirmed")
+        elif obv_trend_4h == "down" and price_up_4h:
+            obv_sub -= 0.25
+            bearish_factors.append("OBV 4H divergence: price up but OBV falling — distribution")
+        elif obv_trend_4h == "up" and not price_up_4h:
+            obv_sub += 0.15
+            bullish_factors.append("OBV 4H rising while price weak — hidden accumulation")
+        elif obv_trend_4h == "down" and not price_up_4h:
+            obv_sub -= 0.15
+
+        if obv_trend_1h == "up":
+            obv_sub += 0.10
+        elif obv_trend_1h == "down":
+            obv_sub -= 0.10
+
+        # OBV above/below its EMA
+        obv_val_4h = ind_4h.get("obv", 0)
+        obv_ema_4h = ind_4h.get("obv_ema", 0)
+        if obv_val_4h > obv_ema_4h and obv_ema_4h != 0:
+            obv_sub += 0.10
+        elif obv_val_4h < obv_ema_4h and obv_ema_4h != 0:
+            obv_sub -= 0.10
+
+        obv_sub = max(0.0, min(1.0, obv_sub))
+
+        volume_score = vol_sub * 0.70 + obv_sub * 0.30
+        volume_score = max(0.0, min(1.0, volume_score))
 
         # =====================================
         # 5. HTF ALIGNMENT SCORE (15%)

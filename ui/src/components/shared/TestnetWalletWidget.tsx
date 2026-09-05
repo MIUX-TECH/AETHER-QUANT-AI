@@ -2,9 +2,11 @@
 import React from 'react'
 import { useStore } from '../../store/useStore'
 import { RefreshCw, ArrowUpRight } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 
 export function TestnetWalletWidget() {
-  const { wallet, refreshWallet, loading, system, setActiveTab } = useStore()
+  const { wallet, refreshWallet, loading, system } = useStore()
+  const navigate = useNavigate()
   const assets = wallet?.assets && wallet.assets.length > 0 ? wallet.assets : []
   const totalValuation = wallet?.total_equity_usd || assets.reduce((acc, a) => acc + (a.usd_value || (a.total * (a.price || 1))), 0)
 
@@ -44,7 +46,7 @@ export function TestnetWalletWidget() {
           </button>
           <button
             className="btn btn-lime btn-xs"
-            onClick={() => setActiveTab('portfolio')}
+            onClick={() => navigate('/portfolio')}
             style={{ padding: '3px 8px', height: 'auto', fontSize: 10 }}
           >
             Portofolio <ArrowUpRight size={11} />
