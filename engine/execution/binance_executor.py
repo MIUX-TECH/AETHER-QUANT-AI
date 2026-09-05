@@ -318,8 +318,9 @@ class BinanceExecutor:
                              qty: float, price: float = None, leverage: int = 3,
                              margin_mode: str = "ISOLATED",
                              reduce_only: bool = False) -> Dict:
-        # Set leverage first
+        # Set leverage and margin mode first
         self._live_set_leverage(symbol, leverage)
+        self._live_set_margin_mode(symbol, margin_mode)
 
         client_oid = f"AQ_FUT_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"
         params = {
@@ -346,6 +347,18 @@ class BinanceExecutor:
             "timestamp": int(time.time() * 1000)
         }
         return self._signed_post(f"{self.futures_url}/fapi/v1/leverage", params, futures=True)
+
+    def _live_set_margin_mode(self, symbol: str, margin_type: str = "ISOLATED") -> Dict:
+        params = {
+            "symbol": symbol,
+            "marginType": margin_type.upper(),
+            "timestamp": int(time.time() * 1000)
+        }
+        res = self._signed_post(f"{self.futures_url}/fapi/v1/marginType", params, futures=True)
+        # -4046 means margin type is already set to the requested type
+        if res.get("code") == -4046 or res.get("error", "").find("-4046") != -1:
+            return {"status": "success", "msg": "Margin type already set"}
+        return res
 
     def _live_cancel(self, symbol: str, order_id: str, futures: bool = False) -> Dict:
         params = {
@@ -495,10 +508,11 @@ class BinanceExecutor:
 
     def get_open_orders(self, symbol: str = None, futures: bool = False) -> List[Dict]:
         endpoint = "/fapi/v1/openOrders" if futures else "/api/v3/openOrders"
+        base_url = self.futures_url if futures else self.base_url
         params = {}
         if symbol:
             params["symbol"] = symbol
-        status, data = self._send_signed("GET", f"{base}{endpoint}", params)
+        status, data = self._send_signed("GET", f"{base_url}{endpoint}", params)
         return data if status == 200 and isinstance(data, list) else []
 
     def get_account_balances(self) -> Dict[str, Dict]:

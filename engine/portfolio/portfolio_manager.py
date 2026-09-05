@@ -65,10 +65,13 @@ class PortfolioManager:
 
         if trade_type == "spot":
             budget = allocations["btc_budget"] if "BTC" in symbol else allocations["altcoin_budget"]
-            # Subtract existing position size if any
-            if symbol in spot_positions:
-                existing = spot_positions[symbol].get("position_usdt", 0)
+            # Subtract existing positions
+            if "BTC" in symbol:
+                existing = spot_positions.get(symbol, {}).get("position_usdt", 0)
                 budget = max(0, budget - existing)
+            else:
+                total_alt_used = sum(p.get("position_usdt", 0) for sym, p in spot_positions.items() if "BTC" not in sym)
+                budget = max(0, budget - total_alt_used)
             return budget
 
         elif trade_type == "futures":

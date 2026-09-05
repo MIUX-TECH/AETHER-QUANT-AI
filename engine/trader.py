@@ -445,8 +445,9 @@ class TradingOrchestrator:
         sizing["position_usdt"] = min(sizing["position_usdt"], available)
         sizing["position_qty"] = sizing["position_usdt"] / current_price if current_price > 0 else 0
 
-        if sizing["position_usdt"] < 5.0:
-            return {"executed": False, "reason": "Position too small (< $5.00 Binance min)"}
+        # MUTLAK: Minimum safe order agar semua operasi turunan (partial TP, SL) di atas notional Binance ($5)
+        if sizing["position_usdt"] < 13.50:
+            return {"executed": False, "reason": f"Position too small: ${sizing['position_usdt']:.2f} (Min safe order $13.50)"}
 
         # AI Decision Layer Validation (Qwen / Groq Gatekeeper)
         if self.ai_client and self.ai_client.is_available:
@@ -532,8 +533,9 @@ class TradingOrchestrator:
         )
         sizing["position_usdt"] = min(sizing.get("position_usdt", 0), available)
 
-        if sizing["position_usdt"] < 10:
-            return {"executed": False, "reason": "Futures position too small"}
+        notional_value = sizing["position_usdt"] * leverage
+        if notional_value < 13.50:
+            return {"executed": False, "reason": f"Futures notional too small: ${notional_value:.2f} (Min safe $13.50)"}
 
         # AI Decision Layer Validation for Futures
         if self.ai_client and self.ai_client.is_available:
@@ -642,8 +644,14 @@ class TradingOrchestrator:
 
         if trade_type == "spot":
             self.executor.ensure_spot_balance(symbol, partial_qty)
+            order = self.executor.place_spot_market_sell(symbol, partial_qty, current_price)
+        else:
+            close_side = "BUY" if position.get("side", "BUY") == "SELL" else "SELL"
+            order = self.executor.place_futures_order(
+                symbol, close_side, partial_qty, current_price, "MARKET",
+                position.get("leverage", 1), reduce_only=True
+            )
             
-        order = self.executor.place_spot_market_sell(symbol, partial_qty, current_price)
         if order.get("status") == "FILLED":
             position["qty"] = position.get("qty", 0) * (1 - partial_pct)
             position["partial_tp_taken"] = True
@@ -663,13 +671,6 @@ class TradingOrchestrator:
         qty = position.get("qty", 0)
         side = position.get("side", "BUY")
         close_side = "SELL" if side == "BUY" else "BUY"
-
-        # Cek notional value (dust position)
-        notional_value = qty * price
-        if notional_value < 6.0:  # Binance minimum biasanya $5
-            logger.warning(f"Dust position detected for {symbol}: {qty} @ {price} = ${notional_value:.2f}. Bypassing API close and removing locally.")
-            del self.state["positions"][trade_type][symbol]
-            return {"status": "FILLED", "reason": f"DUST_CLEANUP ({reason})"}
 
         if trade_type == "spot":
             # Auto-redeem from Earn if balance is insufficient
@@ -843,6 +844,8 @@ class TradingOrchestrator:
         try:
             if hasattr(self.executor, "get_account_balances"):
                 wallet_balances = self.executor.get_account_balances()
+                # Update portfolio balances first to get real equity, avoiding $0 or ghost budgets
+                self.portfolio_manager.update_portfolio_balances(wallet_balances)
                 self._sync_positions_from_holdings(wallet_balances)
         except Exception:
             pass

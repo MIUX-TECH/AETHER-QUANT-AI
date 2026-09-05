@@ -123,17 +123,17 @@ def boot_system():
         "last_error_at": None,
     })
     
-    # Complete default portfolio state
+    # Complete default portfolio state - using 0 to prevent ghost budgets before API fetch
     default_portfolio = {
-        "total_equity": 1000.0,
-        "spot_equity": 900.0,
-        "futures_equity": 100.0,
-        "cash_reserve": 50.0,
+        "total_equity": 0.0,
+        "spot_equity": 0.0,
+        "futures_equity": 0.0,
+        "cash_reserve": 0.0,
         "unrealized_pnl": 0.0,
         "realized_pnl_today": 0.0,
-        "daily_starting_equity": 1000.0,
+        "daily_starting_equity": 0.0,
         "drawdown_from_peak_pct": 0.0,
-        "peak_equity": 1000.0,
+        "peak_equity": 0.0,
         "mode": "normal",
         "last_rebalance": None,
         "last_drift_check": None,
