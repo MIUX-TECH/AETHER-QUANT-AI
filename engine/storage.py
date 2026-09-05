@@ -69,8 +69,8 @@ def read_json(path: Path, default: Optional[Dict] = None) -> Dict:
                 return default if default is not None else {}
             return json.loads(content)
         except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error in {path}: {e}. Attempting recovery.")
-            return _recover_from_backup(path, default)
+            logger.error(f"JSON decode error in {path}: {e}. Returning default.")
+            return default if default is not None else {}
         except Exception as e:
             logger.error(f"Error reading {path}: {e}")
             return default if default is not None else {}
