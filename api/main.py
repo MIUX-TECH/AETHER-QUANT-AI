@@ -97,7 +97,7 @@ def boot_system():
     trading_cfg = load_config("trading")
     app_config = {**app_cfg, **trading_cfg}
 
-    mode = os.getenv("TRADING_MODE", app_cfg.get("app", {}).get("mode", "paper"))
+    mode = "live"
     log_level = app_cfg.get("app", {}).get("log_level", "INFO")
     setup_logging(log_level)
 
@@ -153,7 +153,6 @@ def boot_system():
 
     # API credentials from environment only — never from state/Upstash
     if mode == "live":
-        testnet = False
         api_key = os.getenv("BINANCE_API_KEY", "").strip()
         secret_key = os.getenv("BINANCE_SECRET_KEY", "").strip()
     elif mode == "testnet":
@@ -161,7 +160,6 @@ def boot_system():
         api_key = os.getenv("BINANCE_TESTNET_API_KEY", "").strip()
         secret_key = os.getenv("BINANCE_TESTNET_SECRET_KEY", "").strip()
     else:
-        testnet = False
         api_key = ""
         secret_key = ""
 
@@ -579,7 +577,6 @@ def get_wallet(verified: bool = Depends(verify_master_token)):
     # Sort primary & valuable assets first
     items.sort(key=lambda x: (x["category"] == "earn", x["underlying"] not in PRIMARY_ASSETS, -x["usd_value"]))
 
-    final_total = round(total_usd, 2) if total_usd > 0 else (1000.0 if orchestrator.executor.mode == "paper" else 0.0)
 
     # Update orchestrator state memory & sync positions
     try:
@@ -623,8 +620,6 @@ def switch_mode(payload: ModeSwitchPayload, verified: bool = Depends(verify_mast
     
     orchestrator.set_mode(mode)
     if hasattr(orchestrator, "executor"):
-        orchestrator.executor.mode = mode
-        orchestrator.executor.testnet = testnet
         orchestrator.executor.base_url = "https://testnet.binance.vision" if testnet else "https://api1.binance.com"
         orchestrator.executor.futures_url = "https://testnet.binancefuture.com" if testnet else "https://fapi.binance.com"
         if payload.api_key and payload.secret_key:
@@ -635,8 +630,6 @@ def switch_mode(payload: ModeSwitchPayload, verified: bool = Depends(verify_mast
             # SECURITY: credentials are NOT persisted to state/Upstash — use env vars or .env only
 
     if hasattr(orchestrator, "market_data"):
-        orchestrator.market_data.mode = mode
-        orchestrator.market_data.testnet = testnet
         if payload.api_key:
             orchestrator.market_data.api_key = payload.api_key.strip()
             orchestrator.market_data.secret_key = payload.secret_key.strip()

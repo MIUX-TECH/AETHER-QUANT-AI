@@ -57,8 +57,8 @@ class BinanceExecutor:
         self.secret_key = secret_key
         self.testnet = testnet
         self.mode = mode
-        self.base_url = BINANCE_TESTNET if testnet else BINANCE_BASE
-        self.futures_url = FUTURES_TESTNET if testnet else FUTURES_BASE
+        self.base_url = BINANCE_BASE
+        self.futures_url = FUTURES_BASE
         self.session = requests.Session()
         self.session.headers.update({"X-MBX-APIKEY": api_key})
         self.max_retries = 3
@@ -136,29 +136,19 @@ class BinanceExecutor:
     def place_spot_market_buy(self, symbol: str, usdt_amount: float,
                                price: float = 0) -> Dict:
         """Place spot market buy order."""
-        if self.mode == "paper":
-            return self._paper_spot_order(symbol, "BUY", "MARKET", usdt_amount, price)
         return self._live_spot_order(symbol, "BUY", "MARKET", quote_qty=usdt_amount)
 
     def place_spot_market_sell(self, symbol: str, qty: float, price: float = 0) -> Dict:
         """Place spot market sell."""
-        if self.mode == "paper":
-            return self._paper_spot_order(symbol, "SELL", "MARKET", qty * price, price, qty=qty)
         return self._live_spot_order(symbol, "SELL", "MARKET", qty=qty)
 
     def place_spot_limit_buy(self, symbol: str, qty: float, price: float) -> Dict:
-        if self.mode == "paper":
-            return self._paper_spot_order(symbol, "BUY", "LIMIT", qty * price, price, qty=qty)
         return self._live_spot_order(symbol, "BUY", "LIMIT", qty=qty, price=price)
 
     def place_spot_limit_sell(self, symbol: str, qty: float, price: float) -> Dict:
-        if self.mode == "paper":
-            return self._paper_spot_order(symbol, "SELL", "LIMIT", qty * price, price, qty=qty)
         return self._live_spot_order(symbol, "SELL", "LIMIT", qty=qty, price=price)
 
     def cancel_spot_order(self, symbol: str, order_id: str) -> Dict:
-        if self.mode == "paper":
-            return {"status": "CANCELED", "orderId": order_id, "symbol": symbol}
         return self._live_cancel(symbol, order_id, futures=False)
 
     # ============================================================
@@ -169,14 +159,10 @@ class BinanceExecutor:
                              price: float = 0, order_type: str = "MARKET",
                              leverage: int = 3, margin_mode: str = "ISOLATED",
                              reduce_only: bool = False) -> Dict:
-        if self.mode == "paper":
-            return self._paper_futures_order(symbol, side, order_type, qty, price, leverage)
         return self._live_futures_order(symbol, side, order_type, qty, price, leverage,
                                          margin_mode, reduce_only)
 
     def set_futures_leverage(self, symbol: str, leverage: int) -> Dict:
-        if self.mode == "paper":
-            return {"leverage": leverage, "symbol": symbol, "status": "ok"}
         return self._live_set_leverage(symbol, leverage)
 
     # ============================================================
@@ -380,9 +366,6 @@ class BinanceExecutor:
         - Limits Take Profit at tp_price
         - Stops Loss at sl_stop_price with limit execution at sl_limit_price
         """
-        if self.mode == "paper":
-            return {
-                "orderListId": f"PAPER_OCO_{uuid.uuid4().hex[:8].upper()}",
                 "symbol": symbol,
                 "status": "EXECUTING",
                 "mode": "paper"
@@ -518,9 +501,6 @@ class BinanceExecutor:
         return data if isinstance(data, dict) else {"error": str(data)}
 
     def get_open_orders(self, symbol: str = None, futures: bool = False) -> List[Dict]:
-        if self.mode == "paper":
-            return []
-        base = self.futures_url if futures else self.base_url
         endpoint = "/fapi/v1/openOrders" if futures else "/api/v3/openOrders"
         params = {}
         if symbol:
@@ -559,15 +539,11 @@ class BinanceExecutor:
                 return res
             logger.error(f"get_account_balances failed ({status}): {data}")
 
-        if self.mode == "paper":
-            return {"USDT": {"free": 1000.0, "locked": 0.0, "total": 1000.0}}
         
         return self._balance_cache or {}
 
     def get_futures_account(self) -> Dict:
         """Fetch USD-M Futures account balances and margin with 6s caching."""
-        if self.mode == "paper":
-            return {"totalMarginBalance": "0.0", "availableBalance": "0.0", "positions": []}
         now = time.time()
         if self._futures_cache is not None and (now - self._futures_cache_time) < self._cache_ttl:
             return self._futures_cache
@@ -580,33 +556,21 @@ class BinanceExecutor:
 
     def get_my_trades(self, symbol: str = "BTCUSDT", limit: int = 50) -> List[Dict]:
         """Fetch recent executions for a symbol."""
-        if self.mode == "paper":
-            return []
-        params = {"symbol": symbol, "limit": limit}
         status, data = self._send_signed("GET", f"{self.base_url}/api/v3/myTrades", params)
         return data if status == 200 and isinstance(data, list) else []
 
     def get_deposit_history(self, limit: int = 20) -> List[Dict]:
         """Fetch deposit history via SAPI."""
-        if self.mode == "paper":
-            return []
-        params = {"limit": limit}
         status, data = self._send_signed("GET", f"{self.base_url}/sapi/v1/capital/deposit/hisrec", params)
         return data if status == 200 and isinstance(data, list) else []
 
     def get_withdrawal_history(self, limit: int = 20) -> List[Dict]:
         """Fetch withdrawal history via SAPI."""
-        if self.mode == "paper":
-            return []
-        params = {"limit": limit}
         status, data = self._send_signed("GET", f"{self.base_url}/sapi/v1/capital/withdraw/history", params)
         return data if status == 200 and isinstance(data, list) else []
 
     def get_transfer_history(self, limit: int = 20) -> List[Dict]:
         """Fetch internal Spot <-> Futures transfer history via SAPI."""
-        if self.mode == "paper":
-            return []
-        params = {"asset": "USDT", "startTime": int((time.time() - 86400 * 90) * 1000), "limit": limit}
         status, data = self._send_signed("GET", f"{self.base_url}/sapi/v1/futures/transfer", params)
         if status == 200 and isinstance(data, dict):
             return data.get("rows", [])
@@ -617,8 +581,6 @@ class BinanceExecutor:
         Transfer funds internally between Spot and USD-M Futures via Binance SAPI.
         direction: 'spot_to_futures' (type=1) or 'futures_to_spot' (type=2)
         """
-        if self.mode == "paper":
-            return {"tranId": 999999, "status": "CONFIRMED", "simulated": True, "amount": amount, "direction": direction}
 
         transfer_type = 1 if direction in ["spot_to_futures", "1", 1] else 2
         # Use string truncation to avoid floating-point dust that Binance SAPI rejects
@@ -642,9 +604,6 @@ class BinanceExecutor:
 
     def get_earn_positions(self, asset: str = None) -> List[Dict]:
         """Fetch active Flexible Simple Earn positions."""
-        if self.mode == "paper":
-            return []
-        params = {"size": 100}
         if asset:
             params["asset"] = asset.upper()
         status, data = self._send_signed("GET", f"{self.base_url}/sapi/v1/simple-earn/flexible/position", params)
@@ -654,9 +613,6 @@ class BinanceExecutor:
 
     def redeem_from_earn(self, product_id: str, amount: float, asset: str) -> Dict:
         """Redeem specific amount from Simple Earn to Spot wallet."""
-        if self.mode == "paper":
-            logger.info(f"[PAPER] Redeemed {amount} {asset} from Earn to Spot")
-            return {"status": "SUCCESS", "simulated": True}
         
         # Binance requires string formatting for amount
         amt_str = f"{float(amount):.8f}".rstrip("0").rstrip(".")
@@ -683,9 +639,6 @@ class BinanceExecutor:
         If not, check Simple Earn and auto-redeem the exact missing amount.
         Returns True if balance is sufficient (or successfully redeemed), False otherwise.
         """
-        if self.mode == "paper":
-            return True
-            
         # Extract base asset from symbol (e.g., BTC from BTCUSDT)
         base_asset = symbol.replace("USDT", "") if symbol.endswith("USDT") else symbol
         
@@ -746,8 +699,6 @@ class BinanceExecutor:
         Used when positions must be closed during flash crashes regardless of cooldown state."""
         logger.warning(f"🚨 EMERGENCY CLOSE: {side} {qty} {symbol} ({trade_type}) — bypassing cooldown")
         
-        if self.mode == "paper":
-            return self._paper_spot_order(symbol, side, "MARKET", qty * 1, 1, qty=qty)
 
         formatted_qty = self._format_qty(symbol, qty)
         client_oid = f"AQ_EMRG_{int(time.time()*1000)}_{uuid.uuid4().hex[:6]}"

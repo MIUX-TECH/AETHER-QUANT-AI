@@ -73,13 +73,11 @@ class MarketDataService:
     """
 
     def __init__(self, api_key: str = "", secret_key: str = "",
-                 testnet: bool = True, mode: str = "paper"):
+                 ):
         self.api_key = api_key
         self.secret_key = secret_key
-        self.testnet = testnet
-        self.mode = mode
-        self.base_url = BINANCE_TESTNET if testnet else "https://api1.binance.com"
-        self.futures_url = FUTURES_TESTNET if testnet else FUTURES_BASE
+                        self.base_url = "https://api1.binance.com"
+        self.futures_url = FUTURES_BASE
         self.session = requests.Session()
         self.session.headers.update({
             "X-MBX-APIKEY": api_key,
@@ -292,8 +290,6 @@ class MarketDataService:
 
     def get_account_balance(self) -> Optional[Dict]:
         """Get spot account balance (signed request)."""
-        if self.mode == "paper":
-            return {"USDT": {"free": 1000.0, "locked": 0.0}}
         return self._signed_get(f"{self.base_url}/api/v3/account")
 
     def _signed_get(self, url: str, params: dict = None) -> Optional[Dict]:

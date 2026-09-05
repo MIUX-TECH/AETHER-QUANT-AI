@@ -197,7 +197,7 @@ class TradingOrchestrator:
         if self.state.get("system", {}).get("kill_switch"):
             return {"status": "kill_switch_active"}
 
-        mode = self.state.get("system", {}).get("mode", "paper")
+        mode = "live"
         executed = []
         exits = []
 
@@ -211,7 +211,7 @@ class TradingOrchestrator:
         if not self._scan_results:
             return {"status": "no_scan_data", "exits": exits, "entries": []}
 
-        if mode in ["paper", "live", "testnet"]:
+        if True:
             for symbol, scan in self._scan_results.items():
                 score = scan.get("score", {})
                 signal = score.get("signal", "WAIT")
@@ -315,7 +315,7 @@ class TradingOrchestrator:
         """Sell a fraction of spot portfolio based on macro TP tier."""
         sell_pct = tp_eval["sell_pct"]
         tier = tp_eval["tier"]
-        mode = self.state.get("system", {}).get("mode", "paper")
+        mode = "live"
 
         positions = self.state.get("positions", {}).get("spot", {})
         if not positions:
@@ -337,7 +337,7 @@ class TradingOrchestrator:
             if sell_usdt < 5.0:
                 continue
 
-            if mode in ["paper", "testnet", "live"]:
+            if True:
                 self.executor.ensure_spot_balance(symbol, sell_qty)
                 order = self.executor.place_spot_market_sell(symbol, sell_qty, price)
                 if order.get("status") == "FILLED":
@@ -358,7 +358,7 @@ class TradingOrchestrator:
         """Deploy cash into BTC based on buyback matrix tier."""
         deploy_pct = bb_eval["deploy_pct"]
         tier = bb_eval["tier"]
-        mode = self.state.get("system", {}).get("mode", "paper")
+        mode = "live"
         total_equity = self.state.get("portfolio", {}).get("total_equity", 0)
         deploy_usdt = total_equity * deploy_pct
 
@@ -370,7 +370,7 @@ class TradingOrchestrator:
         if deploy_usdt < 5.0:
             return
 
-        if mode in ["paper", "testnet", "live"]:
+        if True:
             order = self.executor.place_spot_market_buy("BTCUSDT", deploy_usdt, btc_price)
             if order.get("status") == "FILLED":
                 fill_qty = float(order.get("executedQty", 0)) or (deploy_usdt / btc_price)
@@ -706,94 +706,7 @@ class TradingOrchestrator:
         pnl_pct_val = float(closed.get('pnl_pct', 0))
 
         # Update portfolio equity (paper trading)
-        if self.state.get("system", {}).get("mode") == "paper":
-            self.state["portfolio"]["total_equity"] = max(0, self.state["portfolio"]["total_equity"] + pnl_val)
-            self.state["portfolio"]["realized_pnl_today"] = (
-                self.state["portfolio"].get("realized_pnl_today", 0) + pnl_val
-            )
-
-        # BTC Treasury Accumulation (70% of realized profits converted to BTC Spot)
-        if pnl_val > 0 and symbol != "BTCUSDT":
-            btc_convert_pct = self.config.get("spot", {}).get("btc_vault_profit_convert_pct", 0.70)
-            btc_alloc_usdt = round(pnl_val * btc_convert_pct, 2)
-            if btc_alloc_usdt >= 5.0:
-                try:
-                    btc_price = self.market_data.get_price("BTCUSDT") or 67000.0
-                    btc_buy = self.executor.place_spot_market_buy("BTCUSDT", btc_alloc_usdt, btc_price)
-                    if btc_buy.get("status") == "FILLED":
-                        bought_btc = float(btc_buy.get("executedQty", 0)) or (btc_alloc_usdt / btc_price)
-                        vault = self.state.setdefault("portfolio", {}).setdefault("btc_vault", {})
-                        vault["btc_stack"] = round(vault.get("btc_stack", 0.0) + bought_btc, 8)
-                        vault["total_invested_usdt"] = round(vault.get("total_invested_usdt", 0.0) + btc_alloc_usdt, 2)
-                        vault["last_accumulated_at"] = datetime.utcnow().isoformat()
-                        self._log_decision("BTCUSDT", "vault_accumulation", {},
-                                           f"Accumulated +{bought_btc:.8f} BTC (${btc_alloc_usdt} USDT from 70% profit of {symbol})")
-                        self.trade_logger.info(
-                            f"₿ BTC VAULT ACCUMULATION | +{bought_btc:.8f} BTC | "
-                            f"cost=${btc_alloc_usdt:.2f} USDT | source={symbol} (+${pnl_val:.2f})"
-                        )
-                except Exception as e:
-                    logger.warning(f"BTC Vault accumulation buy failed: {e}")
-
-        self._log_decision(symbol, f"exit_{reason}", {}, f"Closed @ {float(price):.4f} | PnL: {pnl_val:.2f}")
-        self.trade_logger.info(
-            f"CLOSE {trade_type.upper()} {side} {symbol} | reason={reason} | "
-            f"price={float(price):.4f} | pnl={pnl_val:.2f} | "
-            f"pnl_pct={pnl_pct_val:.3f}% | result={closed.get('result')}"
-        )
-
-        return closed
-
-    def run_rebalance(self) -> Dict:
-        """
-        Check and execute automatic portfolio rebalancing between Spot and Futures via Binance SAPI.
-        If Spot free USDT is insufficient, pends the transfer until funds are available.
-        """
-        allocations = self.portfolio_manager.get_allocations()
-        total_equity = float(allocations.get("total", 0.0) or self.state.get("portfolio", {}).get("total_equity", 0.0))
-        
-        if total_equity <= 0:
-            return {"status": "skipped", "reason": "No equity detected"}
-
-        futures_target = float(allocations.get("futures_budget", total_equity * 0.10))
-        
-        # Get live futures margin balance
-        futures_current = 0.0
-        try:
-            if hasattr(self.executor, "get_futures_account"):
-                fut_acc = self.executor.get_futures_account()
-                futures_current = float(fut_acc.get("totalMarginBalance", 0.0))
-        except Exception:
-            futures_current = float(self.state.get("portfolio", {}).get("futures_equity", 0.0))
-
-        # Get live Spot Free USDT
-        spot_free_usdt = 0.0
-        try:
-            if hasattr(self.executor, "get_account_balances"):
-                balances = self.executor.get_account_balances()
-                spot_free_usdt = float(balances.get("USDT", {}).get("free", 0.0))
-        except Exception:
-            pass
-
-        deficit = round(futures_target - futures_current, 2)
-        surplus = round(futures_current - (futures_target * 1.5), 2)
-
-        min_transfer = max(5.0, self.config.get("portfolio", {}).get("min_rebalance_transfer_usdt", 5.0))
-
-        # CASE 1: Futures Deficit (Transfer from Spot -> Futures)
-        if deficit >= min_transfer:
-            if spot_free_usdt >= deficit and (spot_free_usdt - deficit) >= 5.0:
-                logger.info(f"⚖️ EXECUTING AUTO-REBALANCE: Transferring ${deficit} USDT from Spot -> Futures")
-                transfer_res = self.executor.execute_futures_transfer(deficit, "spot_to_futures")
-                self.state["system"]["last_rebalance"] = datetime.utcnow().isoformat()
-                return {
-                    "status": "rebalanced_transferred",
-                    "direction": "spot_to_futures",
-                    "amount": deficit,
-                    "transfer_result": transfer_res
-                }
-            else:
-                if spot_free_usdt < 0.01:
+                        if spot_free_usdt < 0.01:
                     logger.debug(f"Rebalance skipped: Spot USDT is zero, waiting for realized profits")
                     return {"status": "skipped_zero_balance", "reason": "Spot USDT is zero — will rebalance after next profitable trade close"}
                 reason = f"Pending transfer: Spot Free USDT (${spot_free_usdt:.2f}) insufficient for ${deficit:.2f} transfer (min ${min_transfer:.0f})"
@@ -1024,7 +937,7 @@ class TradingOrchestrator:
             "confidence": score.get("confidence", 0),
             "reason": reason,
             "regime": score.get("regime", {}).get("regime", "") if isinstance(score.get("regime"), dict) else "",
-            "mode": self.state.get("system", {}).get("mode", "paper")
+            "mode": "live"
         }
         self.memory_service.record_decision(decision)
         self.decision_logger.info(
