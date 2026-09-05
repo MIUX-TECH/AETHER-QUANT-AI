@@ -822,3 +822,13 @@ if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("API_PORT", 8000))
     uvicorn.run("api.main:app", host="0.0.0.0", port=port, reload=False)
+import os, glob
+@app.post("/api/admin/clean")
+def admin_clean(verified: bool = Depends(verify_master_token)):
+    res = []
+    for d in ["history", "memory", "reports", "state"]:
+        files = glob.glob(f"{d}/*.json")
+        for f in files:
+            os.remove(f)
+            res.append(f)
+    return {"cleaned": res}
