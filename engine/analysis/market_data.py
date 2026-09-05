@@ -58,11 +58,11 @@ TIMEFRAME_SECONDS = {
 
 TIMEFRAME_CACHE_TTL = {
     "1d": 14400,  # 4 hours
-    "4h": 7200,   # 2 hours
-    "1h": 1800,   # 30 minutes
-    "15m": 300,   # 5 minutes
-    "5m": 60,     # 1 minute
-    "1m": 20      # 20 seconds
+    "4h": 3600,   # 1 hour
+    "1h": 0,      # NO CACHE - fresh every cycle
+    "15m": 0,     # NO CACHE
+    "5m": 0,      # NO CACHE
+    "1m": 0       # NO CACHE
 }
 
 
@@ -196,7 +196,7 @@ class MarketDataService:
         Fetch OHLCV candlestick data with tiered TTL per timeframe.
         """
         cache_key = f"klines_{symbol}_{interval}_{limit}"
-        ttl = TIMEFRAME_CACHE_TTL.get(interval, 60)
+        ttl = TIMEFRAME_CACHE_TTL.get(interval, 0)
         def fetch():
             url = f"{self.base_url}/api/v3/klines"
             raw = self._get(url, {"symbol": symbol, "interval": interval, "limit": limit})
@@ -219,6 +219,9 @@ class MarketDataService:
                     "dt": datetime.utcfromtimestamp(k[0] / 1000).isoformat()
                 })
             return candles
+        
+        if ttl <= 0:
+            return fetch()
         return self._cached(cache_key, fetch, ttl=ttl)
 
     def get_multi_timeframe(self, symbol: str,
