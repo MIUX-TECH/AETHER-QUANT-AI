@@ -71,8 +71,9 @@ export default function PortfolioPage() {
   }
 
   const allAssets = wallet?.assets || []
-  const spotAssets = allAssets.filter((a: any) => a.category !== 'earn')
+  const spotAssets = allAssets.filter((a: any) => a.category === 'spot' || a.category === undefined)
   const earnAssets = allAssets.filter((a: any) => a.category === 'earn')
+  const futuresAssets = allAssets.filter((a: any) => a.category === 'futures')
 
   const totalEquityUSD = Number(wallet?.total_equity_usd || portfolio?.total_equity || 0)
   const spotUSD = Number(wallet?.spot_usd || 0)
@@ -324,13 +325,14 @@ export default function PortfolioPage() {
       )}
 
       {/* TAB 3: Futures USD(M) Account */}
+      {/* TAB 3: Akun Margin USD(M) Futures */}
       {activeTab === 'futures' && (
         <div className="card p-3">
           <SectionHeader
             title="Akun Margin USD(M) Futures"
             subtitle="Saldo margin, margin bebas, dan posisi hedging aktif"
           />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2 mb-4">
             <div className="p-2.5 rounded bg-deep border border-border">
               <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>TOTAL MARGIN BALANCE</div>
               <div className="mono font-bold" style={{ fontSize: 16, color: 'var(--accent)', marginTop: 2 }}>${futuresUSD.toFixed(2)} USDT</div>
@@ -347,6 +349,39 @@ export default function PortfolioPage() {
                 ${Number(wallet?.futures_account?.totalUnrealizedProfit || 0).toFixed(2)} USDT
               </div>
             </div>
+          </div>
+
+          <div className="table-wrapper" style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11, fontFamily: 'var(--font-mono)' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--bg-border)', color: 'var(--text-muted)', textAlign: 'left' }}>
+                  <th style={{ padding: '6px 4px' }}>Aset Margin</th>
+                  <th style={{ padding: '6px 4px' }}>Koin Dasar</th>
+                  <th style={{ padding: '6px 4px' }}>Wallet Balance</th>
+                  <th style={{ padding: '6px 4px' }}>Margin Balance</th>
+                  <th style={{ padding: '6px 4px' }}>Nilai Margin (USD)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {futuresAssets.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} style={{ textAlign: 'center', padding: '16px', color: 'var(--text-muted)' }}>
+                      Tidak ada aset di dompet Futures.
+                    </td>
+                  </tr>
+                ) : (
+                  futuresAssets.map((a: any, i: number) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--bg-border)', height: 34 }}>
+                      <td style={{ padding: '6px 4px', fontWeight: 700, color: 'var(--accent)' }}>{a.asset}</td>
+                      <td style={{ padding: '6px 4px', fontWeight: 600 }}>{a.underlying}</td>
+                      <td style={{ padding: '6px 4px' }}>{a.free?.toFixed(4)}</td>
+                      <td style={{ padding: '6px 4px' }}>{a.total?.toFixed(4)}</td>
+                      <td style={{ padding: '6px 4px', fontWeight: 'bold' }}>${a.usd_value?.toFixed(2)}</td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
         </div>
       )}
