@@ -236,6 +236,9 @@ class MarketDataService:
                 result[tf] = data
             else:
                 logger.warning(f"No data for {symbol} {tf}")
+            # Add small sleep between timeframe requests to prevent spam
+            import time
+            time.sleep(0.3)
         return result
 
     def get_order_book(self, symbol: str, limit: int = 20) -> Optional[Dict]:

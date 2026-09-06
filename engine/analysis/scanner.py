@@ -159,7 +159,8 @@ class MarketScanner:
                 results[symbol] = result
             else:
                 results[symbol] = self._empty_result(symbol, "Scan returned None")
-            time.sleep(0.15)
+            # Increased sleep to avoid Binance IP Ban during multi-symbol Klines fetch
+            time.sleep(1.0)
 
         logger.info(f"Scan complete: {len(results)} symbols processed")
         return results
