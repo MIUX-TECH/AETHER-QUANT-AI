@@ -24,7 +24,7 @@ export const TABS = [
 export const MOBILE_PRIMARY_TABS = ['dashboard', 'scanner', 'positions', 'portfolio', 'history']
 
 export default function Navigation() {
-  const { system, risk, positions, switchTradingMode, loading } = useStore()
+  const { system, risk, positions, switchTradingMode, loading, health } = useStore()
   const [showModeDropdown, setShowModeDropdown] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
@@ -34,6 +34,8 @@ export default function Navigation() {
   const hasDanger = risk?.kill_switch || risk?.capital_preservation
   const totalPosCount = (positions?.spot?.length || 0) + (positions?.futures?.length || 0)
   const currentMode = system?.mode || 'testnet'
+  
+  const isSystemHealthy = system?.status !== 'error' && (!health || health.status !== 'error')
 
   const handleSelectMode = (mode: string) => {
     setShowModeDropdown(false)
@@ -156,13 +158,38 @@ export default function Navigation() {
         </nav>
 
         {/* Footer System Status */}
-        <div className="p-3 border-t border-border flex items-center justify-between" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
-          <span style={{ color: 'var(--bull)', display: 'flex', alignItems: 'center', gap: 4 }}>
-            ● 24/7 LIVE
-          </span>
-          <span style={{ color: 'var(--text-muted)' }}>
-            v4.0 PRO
-          </span>
+        <div className="p-3 border-t border-border flex flex-col gap-2" style={{ fontSize: 10, fontFamily: 'var(--font-mono)' }}>
+          <div className="flex items-center justify-between">
+            <span style={{ color: 'var(--bull)', display: 'flex', alignItems: 'center', gap: 4 }}>
+              ● 24/7 LIVE
+            </span>
+            <span style={{ color: 'var(--text-muted)' }}>
+              v4.0 PRO
+            </span>
+          </div>
+          
+          <div className="flex items-center justify-between pt-1 border-t border-border/50">
+            <div className="flex items-center gap-1.5" title="System Health">
+              <span style={{
+                width: 6, height: 6, borderRadius: '50%',
+                background: isSystemHealthy ? 'var(--bull)' : 'var(--bear)',
+                boxShadow: `0 0 4px ${isSystemHealthy ? 'var(--bull)' : 'var(--bear)'}`
+              }} />
+              <span style={{ color: 'var(--text-primary)' }}>
+                {isSystemHealthy ? 'System: Normal' : 'System: Error'}
+              </span>
+            </div>
+            
+            {(health?.binance_api || health?.data_feed || health?.api) && (
+              <div className="flex items-center gap-1.5" title="API Status">
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: (health?.binance_api === 'ok' || health?.api === 'ok' || health?.data_feed === 'ok') ? 'var(--bull)' : 'var(--bear)'
+                }} />
+                <span style={{ color: 'var(--text-muted)' }}>API: OK</span>
+              </div>
+            )}
+          </div>
         </div>
       </aside>
 
