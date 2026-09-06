@@ -1,0 +1,8 @@
+import re
+from pathlib import Path
+
+path = Path('/root/binance-ai-trader/api/main.py')
+content = path.read_text()
+
+# We need to wrap the orchestrator initialization in a startup event
+# Actually, the simplest fix is to just let it start but we must be sure it's not a timeout.

@@ -48,7 +48,7 @@ export default function MemoryPage() {
 
       {/* Adaptive weights */}
       {m.adaptive_weights && Object.keys(m.adaptive_weights).length > 0 && (
-        <div className="card p-4 mb-4">
+        <div className="card p-4 mb-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.37s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Adaptive Score Weights" subtitle="Adjusted based on historical performance" />
           <div className="flex flex-col gap-3">
             {Object.entries(m.adaptive_weights).map(([key, val]: [string, any]) => (
@@ -70,11 +70,11 @@ export default function MemoryPage() {
 
       {/* Strategy performance */}
       {m.strategy_performance && Object.keys(m.strategy_performance).length > 0 && (
-        <div className="card p-4 mb-4">
+        <div className="card p-4 mb-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.22s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Strategy Performance" subtitle="Learned from trade outcomes" />
           <div className="flex flex-col gap-3">
             {Object.entries(m.strategy_performance).map(([strat, s]: [string, any]) => (
-              <div key={strat} style={{ background: 'var(--bg-deep)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', border: '1px solid var(--bg-border)' }}>
+              <div key={strat} style={{ background: 'var(--bg-black/20)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', border: '1px solid var(--bg-border)' }}>
                 <div className="flex items-center justify-between gap-2 mb-2">
                   <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 600, textTransform: 'capitalize', color: 'var(--text-primary)' }}>
                     {strat.replace(/_/g, ' ')}
@@ -100,11 +100,11 @@ export default function MemoryPage() {
 
       {/* Coin profiles */}
       {m.coin_profiles && Object.keys(m.coin_profiles).length > 0 && (
-        <div className="card p-4 mb-4">
+        <div className="card p-4 mb-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.31s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Coin Profiles" subtitle="Per-asset learned behavior" />
           <div className="grid-2 gap-3">
             {Object.entries(m.coin_profiles).map(([sym, p]: [string, any]) => (
-              <div key={sym} style={{ background: 'var(--bg-deep)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', border: '1px solid var(--bg-border)' }}>
+              <div key={sym} style={{ background: 'var(--bg-black/20)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', border: '1px solid var(--bg-border)' }}>
                 <div style={{ fontSize: 13, fontFamily: 'var(--font-mono)', fontWeight: 700, color: 'var(--text-primary)', marginBottom: 8 }}>
                   {sym.replace('USDT', '')}
                 </div>
@@ -123,7 +123,7 @@ export default function MemoryPage() {
 
       {/* Regime performance */}
       {m.regime_performance && Object.keys(m.regime_performance).length > 0 && (
-        <div className="card p-4 mb-4">
+        <div className="card p-4 mb-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.13s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Regime Performance" subtitle="Win rate by market condition" />
           <div className="flex flex-col gap-2">
             {Object.entries(m.regime_performance).map(([regime, r]: [string, any]) => (
@@ -145,11 +145,11 @@ export default function MemoryPage() {
 
       {/* Lessons */}
       {m.lessons && m.lessons.length > 0 && (
-        <div className="card p-4">
+        <div className="card p-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.13s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Lessons Learned" subtitle="Derived from losing trades" />
           <div className="flex flex-col gap-2">
             {m.lessons.slice(0, 10).map((lesson: any, i: number) => (
-              <div key={i} style={{ background: 'var(--bg-deep)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', border: '1px solid rgba(239,68,68,0.1)' }}>
+              <div key={i} style={{ background: 'var(--bg-black/20)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', border: '1px solid rgba(239,68,68,0.1)' }}>
                 <div className="flex items-center gap-2 mb-1">
                   <AlertTriangle size={11} style={{ color: 'var(--warn)', flexShrink: 0 }} />
                   <span style={{ fontSize: 12, fontFamily: 'var(--font-mono)', fontWeight: 600, color: 'var(--text-primary)' }}>

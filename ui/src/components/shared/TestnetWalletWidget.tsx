@@ -14,7 +14,7 @@ export function TestnetWalletWidget() {
   const displayAssets = assets.filter(a => ['USDT', 'BTC', 'ETH', 'BNB', 'SOL', 'USD'].includes(a.asset) || a.usd_value > 50).slice(0, 6)
 
   return (
-    <div className="card card-lime mb-2.5" style={{ padding: '10px 12px' }}>
+    <div className="card card-lime mb-2.5 kinetic-card animate-fade-in-up" style={{ padding: '10px 12px', animationDelay: "0.14s", animationFillMode: "forwards", opacity: 0 }}>
       {/* Top Header Strip */}
       <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
         <div className="flex items-center gap-2">

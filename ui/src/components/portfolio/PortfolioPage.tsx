@@ -126,7 +126,7 @@ export default function PortfolioPage() {
       {/* 3 Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
         {/* Total Equity Card */}
-        <div className="card card-lime p-3">
+        <div className="card card-lime p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.22s", animationFillMode: "forwards", opacity: 0 }}>
           <div className="flex items-center justify-between">
             <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
               Total Valuasi Portofolio (USD)
@@ -152,7 +152,7 @@ export default function PortfolioPage() {
         </div>
 
         {/* BTC Treasury Vault Card */}
-        <div className="card p-3" style={{ borderLeft: '3px solid #00F0FF', background: 'linear-gradient(135deg, rgba(0,240,255,0.04), var(--bg-card))' }}>
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ borderLeft: '3px solid #00F0FF', background: 'linear-gradient(135deg, rgba(0,240,255,0.1), rgba(13, 17, 23, 0.5))', animationDelay: "0.33s", animationFillMode: "forwards", opacity: 0 }}>
           <div className="flex items-center justify-between">
             <div style={{ fontSize: 9.5, color: '#00F0FF', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', fontWeight: 700, display: 'flex', alignItems: 'center', gap: 4 }}>
               <Coins size={11} /> BTC Treasury Vault
@@ -172,7 +172,7 @@ export default function PortfolioPage() {
         </div>
 
         {/* Risk & Safety Card */}
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.22s", animationFillMode: "forwards", opacity: 0 }}>
           <div style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase' }}>
             Risk Guard & Failsafe
           </div>
@@ -223,7 +223,7 @@ export default function PortfolioPage() {
 
       {/* TAB 1: Live Binance Spot Balances */}
       {activeTab === 'spot' && (
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.34s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader
             title="Saldo Dompet Spot Binance"
             subtitle="Kuantitas saldo bebas, saldo dalam order, dan estimasi nilai USD real-time"
@@ -280,7 +280,7 @@ export default function PortfolioPage() {
 
       {/* TAB 2: Simple Earn / Flexible LD Assets */}
       {activeTab === 'earn' && (
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.4s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader
             title="Saldo Tabungan Fleksibel / Simple Earn (LD Assets)"
             subtitle="Koin yang sedang didepositkan dalam produk Binance Simple Earn dengan imbal hasil harian"
@@ -327,23 +327,23 @@ export default function PortfolioPage() {
       {/* TAB 3: Futures USD(M) Account */}
       {/* TAB 3: Akun Margin USD(M) Futures */}
       {activeTab === 'futures' && (
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.14s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader
             title="Akun Margin USD(M) Futures"
             subtitle="Saldo margin, margin bebas, dan posisi hedging aktif"
           />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2 mb-4">
-            <div className="p-2.5 rounded bg-deep border border-border">
+            <div className="p-2.5 rounded bg-black/20 border border-border">
               <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>TOTAL MARGIN BALANCE</div>
               <div className="mono font-bold" style={{ fontSize: 16, color: 'var(--accent)', marginTop: 2 }}>${futuresUSD.toFixed(2)} USDT</div>
             </div>
-            <div className="p-2.5 rounded bg-deep border border-border">
+            <div className="p-2.5 rounded bg-black/20 border border-border">
               <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>AVAILABLE BALANCE</div>
               <div className="mono font-bold" style={{ fontSize: 16, color: 'var(--bull)', marginTop: 2 }}>
                 ${Number(wallet?.futures_account?.availableBalance || futuresUSD).toFixed(2)} USDT
               </div>
             </div>
-            <div className="p-2.5 rounded bg-deep border border-border">
+            <div className="p-2.5 rounded bg-black/20 border border-border">
               <div style={{ fontSize: 9, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>UNREALIZED PROFIT</div>
               <div className="mono font-bold" style={{ fontSize: 16, marginTop: 2 }}>
                 ${Number(wallet?.futures_account?.totalUnrealizedProfit || 0).toFixed(2)} USDT
@@ -388,7 +388,7 @@ export default function PortfolioPage() {
 
       {/* TAB 4: Deposit History */}
       {activeTab === 'deposits' && (
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.11s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader
             title="Riwayat Deposit Dana (SAPI)"
             subtitle="Catatan transaksi setoran dana masuk langsung dari Binance SAPI"
@@ -442,7 +442,7 @@ export default function PortfolioPage() {
 
       {/* TAB 5: Withdrawal History */}
       {activeTab === 'withdrawals' && (
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.38s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader
             title="Riwayat Penarikan Dana (SAPI)"
             subtitle="Catatan transaksi penarikan dana keluar dari akun Binance"
@@ -498,7 +498,7 @@ export default function PortfolioPage() {
       {activeTab === 'transfers' && (
         <div className="flex flex-col gap-2.5">
           {/* Top Action Banner */}
-          <div className="card card-lime p-3 flex items-center justify-between flex-wrap gap-2">
+          <div className="card card-lime p-3 flex items-center justify-between flex-wrap gap-2 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.21s", animationFillMode: "forwards", opacity: 0 }}>
             <div>
               <div style={{ fontSize: 12, fontWeight: 800, color: 'var(--accent)' }}>
                 Transfer Saldo Instan (Binance SAPI)
@@ -518,13 +518,13 @@ export default function PortfolioPage() {
           </div>
 
           {transferFeedback && (
-            <div className="p-2 rounded bg-deep border border-bull flex items-center gap-2">
+            <div className="p-2 rounded bg-black/20 border border-bull flex items-center gap-2">
               <CheckCircle2 size={13} style={{ color: 'var(--bull)' }} />
               <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--bull)' }}>{transferFeedback}</span>
             </div>
           )}
 
-          <div className="card p-3">
+          <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.22s", animationFillMode: "forwards", opacity: 0 }}>
             <SectionHeader
               title="Riwayat Mutasi Transfer Internal Spot <-> Futures (SAPI)"
               subtitle="Catatan log transaksi perpindahan saldo resmi dari Binance SAPI"
@@ -591,7 +591,7 @@ export default function PortfolioPage() {
           }}
           onClick={() => setShowTransferModal(false)}
         >
-          <div className="card p-4" style={{ maxWidth: 400, width: '100%' }} onClick={e => e.stopPropagation()}>
+          <div className="card p-4 kinetic-card animate-fade-in-up" style={{ maxWidth: 400, width: '100%', animationDelay: "0.3s", animationFillMode: "forwards", opacity: 0 }} onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-3 border-b border-border pb-2">
               <div className="flex items-center gap-2">
                 <ArrowRightLeft size={16} style={{ color: 'var(--accent)' }} />
@@ -634,7 +634,7 @@ export default function PortfolioPage() {
                 value={transferAmount}
                 onChange={e => setTransferAmount(e.target.value)}
                 className="w-full p-2 rounded mono"
-                style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 13 }}
+                style={{ background: 'var(--bg-black/20)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 13 }}
               />
 
               <div className="flex items-center gap-1.5 mt-1">
@@ -665,7 +665,7 @@ export default function PortfolioPage() {
       {activeTab === 'allocations' && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           {/* Donut Chart Card */}
-          <div className="card p-3">
+          <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.37s", animationFillMode: "forwards", opacity: 0 }}>
             <SectionHeader title="Distribusi Aset Portofolio" subtitle="Bobot setiap koin terhadap total modal" />
             <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
               <div style={{ width: 125, height: 125, position: 'relative', margin: '0 auto' }}>
@@ -710,7 +710,7 @@ export default function PortfolioPage() {
           </div>
 
           {/* Target Rules & Rebalance Drift */}
-          <div className="card p-3">
+          <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.24s", animationFillMode: "forwards", opacity: 0 }}>
             <SectionHeader title="Target Alokasi & Drift Monitor" subtitle="Plafon modal 3-Bucket Hedge Fund" />
             <div className="flex flex-col gap-2.5 mt-2">
               <div>
@@ -718,7 +718,7 @@ export default function PortfolioPage() {
                   <span style={{ color: '#00F0FF', fontWeight: 700 }}>BTC Vault (Target 70% Spot)</span>
                   <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.7).toFixed(2)}</span>
                 </div>
-                <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: 4, background: 'var(--bg-black/20)', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{ width: '70%', height: '100%', background: '#00F0FF' }} />
                 </div>
               </div>
@@ -728,7 +728,7 @@ export default function PortfolioPage() {
                   <span style={{ color: 'var(--bull)' }}>Spot Altcoins (Target 30% Spot)</span>
                   <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.3).toFixed(2)}</span>
                 </div>
-                <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: 4, background: 'var(--bg-black/20)', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{ width: '30%', height: '100%', background: 'var(--bull)' }} />
                 </div>
               </div>
@@ -738,12 +738,12 @@ export default function PortfolioPage() {
                   <span style={{ color: 'var(--warn)' }}>Futures Hedge (Target 10% Plafon)</span>
                   <span style={{ fontWeight: 600 }}>${(totalEquityUSD * 0.1).toFixed(2)}</span>
                 </div>
-                <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
+                <div style={{ width: '100%', height: 4, background: 'var(--bg-black/20)', borderRadius: 2, overflow: 'hidden' }}>
                   <div style={{ width: '10%', height: '100%', background: 'var(--warn)' }} />
                 </div>
               </div>
 
-              <div style={{ background: 'var(--bg-deep)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--bg-border)', display: 'flex', gap: 6, alignItems: 'center', marginTop: 3 }}>
+              <div style={{ background: 'var(--bg-black/20)', padding: '6px 8px', borderRadius: 6, border: '1px solid var(--bg-border)', display: 'flex', gap: 6, alignItems: 'center', marginTop: 3 }}>
                 <CheckCircle2 size={12} style={{ color: 'var(--accent)' }} />
                 <div style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)' }}>
                   Rebalance otomatis aktif saat deviasi alokasi &gt; 5.0%.

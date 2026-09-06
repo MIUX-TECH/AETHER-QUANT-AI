@@ -18,10 +18,10 @@ interface StatCardProps {
 }
 
 export function StatCard({ label, value, sub, change, accent, bull, warn, danger, icon, mono }: StatCardProps) {
-  const cardBorder = accent ? 'card card-lime' : warn ? 'card' : danger ? 'card' : 'card'
+  const cardBorder = (accent ? 'card card-lime' : 'card') + ' kinetic-card animate-fade-in-up'
   const valueColor = accent ? 'var(--accent)' : bull ? 'var(--bull)' : warn ? 'var(--warn)' : danger ? 'var(--bear)' : 'var(--text-primary)'
   return (
-    <div className={`${cardBorder}`} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+    <div className={`${cardBorder}`} style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', animationDelay: (Math.random() * 0.2 + 0.1).toFixed(2) + "s", animationFillMode: "forwards", opacity: 0 }}>
       <div className="flex items-center justify-between gap-1.5 mb-1.5">
         <span style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
           {label}

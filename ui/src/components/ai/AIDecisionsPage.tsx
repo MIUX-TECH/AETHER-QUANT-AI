@@ -86,7 +86,7 @@ export default function AIDecisionsPage() {
 
       <div className="flex flex-col gap-2">
         {filtered.map((dec: any, i: number) => (
-          <div key={i} className="card" style={{ borderLeft: `3px solid ${ACTION_COLORS[dec.action] || 'var(--bg-border)'}` }}>
+          <div key={i} className="card kinetic-card animate-fade-in-up" style={{ animationDelay: "0.15s", borderLeft: `3px solid ${ACTION_COLORS[dec.action] || 'var(--bg-border)'}` }}>
             <div className="flex items-start gap-3 p-3">
               <span style={{ fontSize: 16, flexShrink: 0 }}>{ACTION_ICON[dec.action] || '◈'}</span>
               <div style={{ flex: 1, minWidth: 0 }}>

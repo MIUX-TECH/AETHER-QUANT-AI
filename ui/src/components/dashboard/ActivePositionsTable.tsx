@@ -4,7 +4,7 @@ import { ArrowUpRight } from 'lucide-react'
 
 export function ActivePositionsTable({ allPositions, navigate }: any) {
   return (
-    <div className="card p-3">
+    <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.23s", animationFillMode: "forwards", opacity: 0 }}>
       <div className="flex items-center justify-between mb-2">
         <SectionHeader
           title={`Posisi Bot Terbuka (${allPositions.length})`}

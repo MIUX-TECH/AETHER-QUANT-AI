@@ -67,7 +67,7 @@ export default function HistoryPage() {
         </div>
         <div className="flex items-center gap-1.5">
           {/* Period Selector */}
-          <div className="flex items-center gap-1 bg-deep p-0.5 rounded border border-border">
+          <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded border border-border">
             {(['1D', '7D', '30D', 'ALL'] as const).map(p => (
               <button
                 key={p}
@@ -105,7 +105,7 @@ export default function HistoryPage() {
           bull={totalPnl > 0}
           danger={totalPnl < 0}
         />
-        <div className="card p-3" style={{ borderLeft: '3px solid #00F0FF', background: 'linear-gradient(135deg, rgba(0,240,255,0.04), var(--bg-card))' }}>
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ borderLeft: '3px solid #00F0FF', background: 'linear-gradient(135deg, rgba(0,240,255,0.1), rgba(13, 17, 23, 0.5))', animationDelay: "0.2s", animationFillMode: "forwards", opacity: 0 }}>
           <div className="flex items-center justify-between" style={{ fontSize: 9.5, color: '#00F0FF', fontFamily: 'var(--font-mono)', fontWeight: 700 }}>
             <span className="flex items-center gap-1"><Coins size={11} /> BTC VAULT PROFIT</span>
             <span style={{ fontSize: 7.5 }}>70% ALLOC</span>
@@ -120,7 +120,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Filter Bar */}
-      <div className="card p-2.5 flex items-center justify-between gap-2 flex-wrap">
+      <div className="card p-2.5 flex items-center justify-between gap-2 flex-wrap kinetic-card animate-fade-in-up" style={{ animationDelay: "0.27s", animationFillMode: "forwards", opacity: 0 }}>
         {/* Symbol Filters */}
         <div className="flex items-center gap-1 overflow-x-auto flex-1 min-w-[180px]">
           <span style={{ fontSize: 9.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginRight: 3 }}>Koin:</span>
@@ -137,7 +137,7 @@ export default function HistoryPage() {
         </div>
 
         {/* Win / Loss Filters */}
-        <div className="flex items-center gap-1 bg-deep p-0.5 rounded border border-border">
+        <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded border border-border">
           {[
             { id: 'ALL', label: 'Semua Status' },
             { id: 'WIN', label: 'Hanya Win' },
@@ -156,7 +156,7 @@ export default function HistoryPage() {
       </div>
 
       {/* Trades Table */}
-      <div className="card p-3">
+      <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.18s", animationFillMode: "forwards", opacity: 0 }}>
         <SectionHeader title={`Jurnal Order Transaksi (${filtered.length})`} subtitle="Detail order beli, jual, TP1 40% partial, dan runner trailing stop" />
 
         {filtered.length === 0 ? (

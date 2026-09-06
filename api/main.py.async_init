@@ -1,0 +1,28 @@
+import re
+from pathlib import Path
+
+path = Path('/root/binance-ai-trader/api/main.py')
+content = path.read_text()
+
+# Extract the initialization logic into a global function
+# Let's find everything from "api_key = os.getenv" to "schedule.every("
+init_pattern = r'(    # API credentials from environment.*?)(    # Setup scheduler)'
+match = re.search(init_pattern, content, flags=re.DOTALL)
+if match:
+    init_code = match.group(1)
+    
+    # We will replace it with a background thread
+    replacement = """
+    import threading
+    def init_background():
+        global orchestrator
+        try:
+""" + "\n".join("        " + line.strip() for line in init_code.split('\n') if line.strip()) + """
+        except Exception as e:
+            logger.error(f"Failed to initialize orchestrator: {e}")
+
+    # Start in background so Uvicorn starts instantly for Render health check
+    threading.Thread(target=init_background, daemon=True).start()
+""" + "    # Setup scheduler"
+    
+    # Wait, the above logic is too risky with regex spacing.

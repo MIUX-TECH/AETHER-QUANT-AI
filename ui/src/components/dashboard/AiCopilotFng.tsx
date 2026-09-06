@@ -8,12 +8,9 @@ export function AiCopilotFng({
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
       {/* Qwen 27B AI Live Copilot Card */}
       <div
-        className="card p-3"
-        style={{
-          background: 'linear-gradient(135deg, rgba(163,230,53,0.03), rgba(0,240,255,0.02), var(--bg-card))',
+        className="card p-3 kinetic-card animate-fade-in-up" style={{ background: 'linear-gradient(135deg, rgba(163,230,53,0.03), rgba(0,240,255,0.02), rgba(13,17,23,0.5))',
           border: '1px solid var(--accent-glow)',
-          display: 'flex', flexDirection: 'column', justifyContent: 'space-between'
-        }}
+          display: 'flex', flexDirection: 'column', justifyContent: 'space-between', animationDelay: "0.24s", animationFillMode: "forwards", opacity: 0 }}
       >
         <div className="flex items-center justify-between mb-1.5 flex-wrap gap-2">
           <div className="flex items-center gap-2">
@@ -38,7 +35,7 @@ export function AiCopilotFng({
       </div>
 
       {/* Fear & Greed Index Card */}
-      <div className="card p-3 flex items-center justify-between gap-4">
+      <div className="card p-3 flex items-center justify-between gap-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.31s", animationFillMode: "forwards", opacity: 0 }}>
         <div>
           <div className="flex items-center gap-2 mb-1">
             <Activity size={13} style={{ color: fngColor }} />

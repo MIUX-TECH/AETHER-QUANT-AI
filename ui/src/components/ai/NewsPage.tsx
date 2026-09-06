@@ -45,7 +45,7 @@ export default function NewsPage() {
 
       {/* Market sentiment overview */}
       {!selected && summary && (
-        <div className="card p-4 mb-4" style={{ borderColor: sentimentColor + '30' }}>
+        <div className="card p-4 mb-4 kinetic-card animate-fade-in-up" style={{ borderColor: sentimentColor + '30', animationDelay: "0.31s", animationFillMode: "forwards", opacity: 0 }}>
           <div className="flex items-center justify-between mb-3">
             <SectionHeader title="Market Sentiment" />
             <span style={{ fontSize: 22, fontFamily: 'var(--font-display)', fontWeight: 800, color: sentimentColor }}>
@@ -70,7 +70,7 @@ export default function NewsPage() {
               { label: 'Neutral', value: summary.neutral_count || 0, color: 'var(--text-muted)' },
               { label: 'Bearish Articles', value: summary.bearish_count || 0, color: 'var(--bear)' },
             ].map(m => (
-              <div key={m.label} style={{ textAlign: 'center', padding: 10, background: 'var(--bg-deep)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--bg-border)' }}>
+              <div key={m.label} style={{ textAlign: 'center', padding: 10, background: 'var(--bg-black/20)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--bg-border)' }}>
                 <div style={{ fontSize: 20, fontFamily: 'var(--font-mono)', fontWeight: 700, color: m.color }}>{m.value}</div>
                 <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginTop: 2 }}>{m.label}</div>
               </div>
@@ -100,7 +100,7 @@ export default function NewsPage() {
       )}
 
       {!selected && (
-        <div className="card p-4">
+        <div className="card p-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.34s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Configure News Sources" />
           <p style={{ fontSize: 12, color: 'var(--text-secondary)', fontFamily: 'var(--font-mono)', lineHeight: 1.6 }}>
             To enable live news sentiment:<br />
@@ -118,7 +118,7 @@ export default function NewsPage() {
       <div className="flex flex-col gap-2">
         {articles.map((article: any, i: number) => (
           <a key={i} href={article.url || '#'} target="_blank" rel="noreferrer" style={{ textDecoration: 'none' }}>
-            <div className="card p-3" style={{ cursor: 'pointer', transition: 'border-color 0.15s' }}>
+            <div className="card p-3 kinetic-card animate-fade-in-up" style={{ cursor: 'pointer', transition: 'border-color 0.15s', animationDelay: "0.26s", animationFillMode: "forwards", opacity: 0 }}>
               <div className="flex items-start gap-2">
                 <Newspaper size={14} style={{ color: 'var(--accent-lime)', flexShrink: 0, marginTop: 2 }} />
                 <div>

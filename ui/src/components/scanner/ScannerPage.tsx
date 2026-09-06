@@ -56,10 +56,10 @@ export default function ScannerPage() {
   return (
     <div className="flex flex-col gap-3">
       {/* Search & Category Filter Bar */}
-      <div className="card p-2.5 flex flex-col gap-2">
+      <div className="card p-2.5 flex flex-col gap-2 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.24s", animationFillMode: "forwards", opacity: 0 }}>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {/* Search Box */}
-          <div className="flex items-center gap-2 flex-1 min-w-[180px]" style={{ background: 'var(--bg-deep)', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--bg-border)' }}>
+          <div className="flex items-center gap-2 flex-1 min-w-[180px]" style={{ background: 'var(--bg-black/20)', padding: '5px 8px', borderRadius: 6, border: '1px solid var(--bg-border)' }}>
             <Search size={12} style={{ color: 'var(--text-muted)' }} />
             <input
               type="text"
@@ -71,7 +71,7 @@ export default function ScannerPage() {
           </div>
 
           {/* Category Chips */}
-          <div className="flex items-center gap-1 bg-deep p-0.5 rounded border border-border overflow-x-auto">
+          <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded border border-border overflow-x-auto">
             {[
               { id: 'all', label: 'Semua Koin' },
               { id: 'majors', label: 'Majors' },
@@ -117,7 +117,7 @@ export default function ScannerPage() {
       </div>
 
       {/* Radar Matrix Table */}
-      <div className="card p-3">
+      <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.27s", animationFillMode: "forwards", opacity: 0 }}>
         <SectionHeader title={`Radar Kuantitatif 8 Pilar (${filtered.length})`} subtitle="Evaluasi indikator teknikal & validasi model AI Qwen 27B" />
 
         <div className="table-wrapper" style={{ overflowX: 'auto', marginTop: 6 }}>
@@ -166,7 +166,7 @@ export default function ScannerPage() {
                       </td>
                       <td style={{ padding: '6px 4px' }}>
                         <div className="flex items-center gap-1.5">
-                          <div style={{ width: 40, height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
+                          <div style={{ width: 40, height: 4, background: 'var(--bg-black/20)', borderRadius: 2, overflow: 'hidden' }}>
                             <div
                               style={{
                                 width: `${Math.min(item.confidence * 100, 100)}%`,
@@ -229,8 +229,7 @@ export default function ScannerPage() {
           onClick={() => setSelectedSymbol(null)}
         >
           <div
-            className="card p-3.5"
-            style={{ maxWidth: 480, width: '100%', maxHeight: '85vh', overflowY: 'auto' }}
+            className="card p-3.5 kinetic-card animate-fade-in-up" style={{ maxWidth: 480, width: '100%', maxHeight: '85vh', overflowY: 'auto', animationDelay: "0.28s", animationFillMode: "forwards", opacity: 0 }}
             onClick={e => e.stopPropagation()}
           >
             <div className="flex items-center justify-between mb-2.5 border-b border-border pb-2">
@@ -247,7 +246,7 @@ export default function ScannerPage() {
             <div className="flex flex-col gap-1.5 mb-2.5">
               <SectionHeader title="Matriks Bobot 8 Komponen" subtitle="Kontribusi masing-masing pilar terhadap skor akhir" />
               {Object.entries(selectedSymbol.components || {}).map(([k, v]: [string, any], idx) => (
-                <div key={idx} className="flex justify-between items-center p-1.5 rounded bg-deep border border-border" style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)' }}>
+                <div key={idx} className="flex justify-between items-center p-1.5 rounded bg-black/20 border border-border" style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)' }}>
                   <span style={{ textTransform: 'capitalize', color: 'var(--text-secondary)' }}>{k.replace('_', ' ')}</span>
                   <span className="font-bold" style={{ color: Number(v) >= 0.68 ? 'var(--bull)' : 'var(--text-primary)' }}>
                     {(Number(v) * 100).toFixed(0)}%
@@ -258,7 +257,11 @@ export default function ScannerPage() {
 
             {/* Factors */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
-              <div className="p-2 rounded bg-deep border border-border">
+              <div className="col-span-2 p-2 rounded bg-black/20 border border-border mb-1">
+                <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--text-secondary)', marginBottom: 3 }}>AI Reasoning:</div>
+                <div style={{ fontSize: 10, color: 'var(--text-primary)' }}>{selectedSymbol.reasoning || 'N/A'}</div>
+              </div>
+              <div className="p-2 rounded bg-black/20 border border-border">
                 <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--bull)', marginBottom: 3 }}>Faktor Bullish:</div>
                 <ul style={{ fontSize: 8.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', paddingLeft: 10 }}>
                   {selectedSymbol.bullish_factors.length > 0
@@ -268,7 +271,7 @@ export default function ScannerPage() {
                 </ul>
               </div>
 
-              <div className="p-2 rounded bg-deep border border-border">
+              <div className="p-2 rounded bg-black/20 border border-border">
                 <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--bear)', marginBottom: 3 }}>Faktor Bearish:</div>
                 <ul style={{ fontSize: 8.5, fontFamily: 'var(--font-mono)', color: 'var(--text-secondary)', paddingLeft: 10 }}>
                   {selectedSymbol.bearish_factors.length > 0

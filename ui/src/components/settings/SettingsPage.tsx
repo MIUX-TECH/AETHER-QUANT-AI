@@ -124,7 +124,7 @@ export default function SettingsPage() {
       </div>
 
       {/* MASTER SECURITY GUARD LOCK */}
-      <div className={`card ${isAuthVerified ? 'card-lime' : ''} p-2.5`} style={{ borderColor: isAuthVerified ? 'rgba(163, 230, 53, 0.35)' : 'var(--warn)' }}>
+      <div className={`card ${isAuthVerified ? 'card-lime' : ''} p-2.5 kinetic-card animate-fade-in-up`} style={{ animationDelay: "0.1s", borderColor: isAuthVerified ? 'rgba(163, 230, 53, 0.35)' : 'var(--warn)' }}>
         <div className="flex items-center justify-between flex-wrap gap-2">
           <div className="flex items-center gap-2">
             {isAuthVerified ? (
@@ -151,7 +151,7 @@ export default function SettingsPage() {
             <input
               type="password"
               className="p-1 rounded font-mono"
-              style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11, minWidth: 180 }}
+              style={{ background: 'var(--bg-black/20)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11, minWidth: 180 }}
               placeholder="Master Token Admin..."
               value={adminToken}
               onChange={e => setAdminTokenInput(e.target.value)}
@@ -195,7 +195,7 @@ export default function SettingsPage() {
       {/* TAB 1: Mode & API Keys */}
       {activeTab === 'mode' && (
         <div className="flex flex-col gap-3">
-          <div className="card p-3">
+          <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.27s", animationFillMode: "forwards", opacity: 0 }}>
             <SectionHeader title="Mode Operasi Trading" subtitle="Pilih lingkungan eksekusi pesanan bot" />
             <div className="grid grid-cols-1 md:grid-cols-3 gap-2 mt-2">
               {[
@@ -227,7 +227,7 @@ export default function SettingsPage() {
                     key={m.id}
                     className="p-2.5 cursor-pointer transition-all rounded"
                     style={{
-                      background: isSelected ? 'var(--bg-card2)' : 'var(--bg-deep)',
+                      background: isSelected ? 'var(--bg-card2)' : 'var(--bg-black/20)',
                       border: isSelected ? `1px solid ${m.color}` : '1px solid var(--bg-border)',
                     }}
                     onClick={() => handleSaveMode(m.id)}
@@ -245,7 +245,7 @@ export default function SettingsPage() {
             </div>
           </div>
 
-          <div className="card p-3">
+          <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.2s", animationFillMode: "forwards", opacity: 0 }}>
             <SectionHeader title="Kredensial API Binance" subtitle="Kunci HMAC-SHA256 untuk eksekusi pesanan" />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5 mt-2">
               <div>
@@ -256,7 +256,7 @@ export default function SettingsPage() {
                   value={apiKey}
                   onChange={e => setApiKey(e.target.value)}
                   className="w-full p-2 rounded mt-1 mono"
-                  style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11 }}
+                  style={{ background: 'var(--bg-black/20)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11 }}
                 />
               </div>
               <div>
@@ -267,7 +267,7 @@ export default function SettingsPage() {
                   value={secretKey}
                   onChange={e => setSecretKey(e.target.value)}
                   className="w-full p-2 rounded mt-1 mono"
-                  style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11 }}
+                  style={{ background: 'var(--bg-black/20)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11 }}
                 />
               </div>
             </div>
@@ -282,25 +282,25 @@ export default function SettingsPage() {
 
       {/* TAB 2: Risk Parameters */}
       {activeTab === 'risk' && (
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.32s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Batas Manajemen Risiko & Failsafe" subtitle="Parameter proteksi modal ketat" />
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-2">
-            <div className="p-2 rounded bg-deep border border-border">
+            <div className="p-2 rounded bg-black/20 border border-border">
               <div style={{ fontSize: 8.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>MAX DRAWDOWN</div>
               <div className="mono font-bold" style={{ fontSize: 14, color: 'var(--bear)', marginTop: 2 }}>15.0%</div>
               <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 1 }}>Pemicu auto kill-switch</div>
             </div>
-            <div className="p-2 rounded bg-deep border border-border">
+            <div className="p-2 rounded bg-black/20 border border-border">
               <div style={{ fontSize: 8.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>RISK PER TRADE</div>
               <div className="mono font-bold" style={{ fontSize: 14, color: 'var(--warn)', marginTop: 2 }}>2.0%</div>
               <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 1 }}>Batas risiko saldo</div>
             </div>
-            <div className="p-2 rounded bg-deep border border-border">
+            <div className="p-2 rounded bg-black/20 border border-border">
               <div style={{ fontSize: 8.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>MAX COIN EXPOSURE</div>
               <div className="mono font-bold" style={{ fontSize: 14, color: 'var(--accent)', marginTop: 2 }}>25.0%</div>
               <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 1 }}>Plafon 1 koin</div>
             </div>
-            <div className="p-2 rounded bg-deep border border-border">
+            <div className="p-2 rounded bg-black/20 border border-border">
               <div style={{ fontSize: 8.5, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)' }}>LOSS STREAK COOLDOWN</div>
               <div className="mono font-bold" style={{ fontSize: 14, color: 'var(--bull)', marginTop: 2 }}>3 Trades</div>
               <div style={{ fontSize: 8, color: 'var(--text-muted)', marginTop: 1 }}>Jeda trading otomatis</div>
@@ -311,10 +311,10 @@ export default function SettingsPage() {
 
       {/* TAB 3: Strategy & TP/SL Parameters */}
       {activeTab === 'strategy' && (
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.11s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Strategi TP1, Trailing & Akumulasi BTC" subtitle="Konfigurasi logika posisi tp_modal_trailing_v1" />
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 mt-2">
-            <div className="p-2.5 rounded bg-deep border border-border">
+            <div className="p-2.5 rounded bg-black/20 border border-border">
               <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--bull)' }}>TP1 (Break-Even + Fee):</div>
               <div className="mono font-bold" style={{ fontSize: 13, marginTop: 2 }}>40% Porsi @ +0.3% Buffer</div>
               <p style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -322,7 +322,7 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <div className="p-2.5 rounded bg-deep border border-border">
+            <div className="p-2.5 rounded bg-black/20 border border-border">
               <div style={{ fontSize: 9.5, fontWeight: 700, color: 'var(--warn)' }}>60% Runner Trailing Stop:</div>
               <div className="mono font-bold" style={{ fontSize: 13, marginTop: 2 }}>2.5% Trend / 1.2% Range</div>
               <p style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -330,7 +330,7 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <div className="p-2.5 rounded bg-deep border border-border">
+            <div className="p-2.5 rounded bg-black/20 border border-border">
               <div style={{ fontSize: 9.5, fontWeight: 700, color: '#00F0FF' }}>BTC Treasury Vault Accumulator:</div>
               <div className="mono font-bold" style={{ fontSize: 13, marginTop: 2 }}>70% Realized Profit</div>
               <p style={{ fontSize: 8.5, color: 'var(--text-muted)', marginTop: 2 }}>
@@ -343,14 +343,14 @@ export default function SettingsPage() {
 
       {/* TAB 4: Watchlist Koin */}
       {activeTab === 'watchlist' && (
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.23s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Watchlist Simbol Koin" subtitle="Daftar pasangan koin yang dipindai setiap 60 detik" />
           <textarea
             rows={3}
             value={symbolsText}
             onChange={e => setSymbolsText(e.target.value)}
             className="w-full p-2 rounded mt-2 mono"
-            style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11 }}
+            style={{ background: 'var(--bg-black/20)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 11 }}
           />
           <div className="mt-2 flex justify-end">
             <button className="btn btn-lime btn-xs" onClick={handleSaveSymbols} disabled={!isAuthVerified}>
@@ -362,14 +362,14 @@ export default function SettingsPage() {
 
       {/* TAB 5: Raw JSON */}
       {activeTab === 'raw' && (
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.12s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Editor Konfigurasi JSON Mentah" subtitle="trading.json & app.json" />
           <textarea
             rows={10}
             value={rawTradingJSON}
             onChange={e => setRawTradingJSON(e.target.value)}
             className="w-full p-2 rounded mt-2 mono"
-            style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 10 }}
+            style={{ background: 'var(--bg-black/20)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 10 }}
           />
           <div className="mt-2 flex justify-end">
             <button className="btn btn-lime btn-xs" onClick={() => handleSaveRawConfig('trading')} disabled={!isAuthVerified}>

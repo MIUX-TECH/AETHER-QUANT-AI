@@ -1,7 +1,7 @@
 // src/App.tsx — Main application shell with unified top header and routing
 import React, { useEffect, useState } from 'react'
 import { useStore } from './store/useStore'
-import Navigation from './components/shared/Navigation'
+import Navigation, { TABS } from './components/shared/Navigation'
 import DashboardPage from './components/dashboard/DashboardPage'
 import ScannerPage from './components/scanner/ScannerPage'
 import PositionsPage from './components/positions/PositionsPage'
@@ -15,8 +15,7 @@ import ReportsPage from './components/reports/ReportsPage'
 import SettingsPage from './components/settings/SettingsPage'
 import {
   Lock, Unlock, RefreshCw, Zap, ShieldAlert, ChevronDown,
-  Coins, TrendingUp, AlertTriangle, ShieldCheck, LayoutDashboard, Wallet, ScanSearch, Settings
-} from 'lucide-react'
+  Coins, TrendingUp, AlertTriangle, ShieldCheck, LayoutDashboard, Wallet, ScanSearch, Settings, Menu, X, Brain } from 'lucide-react'
 import { api, getAdminToken, setAdminToken } from './utils/api'
 
 export default function App() {
@@ -27,6 +26,7 @@ export default function App() {
   const [isUnlocked, setIsUnlocked] = useState(false)
   const [tokenChecking, setTokenChecking] = useState(false)
   const [showModeModal, setShowModeModal] = useState(false)
+  const [showMobileMenu, setShowMobileMenu] = useState(false)
 
   useEffect(() => {
     refresh()
@@ -85,10 +85,21 @@ export default function App() {
           {/* Left: Brand & Live Tickers */}
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--bull)', boxShadow: '0 0 8px var(--bull)' }} />
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: (!system || loading) ? 'var(--warn)' : 'var(--bull)', boxShadow: (!system || loading) ? '0 0 8px var(--warn)' : '0 0 8px var(--bull)' }} />
               <span className="mono font-bold" style={{ fontSize: 11, color: 'var(--accent)', letterSpacing: '0.04em' }}>
                 AETHER
               </span>
+              <span style={{ fontSize: 8, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', marginLeft: 4 }}>
+                {(!system || loading) ? 'SYNCING' : 'ONLINE'}
+              </span>
+            </div>
+            
+            {/* Global Fear & Greed Indicator */}
+            <div className="hidden lg:flex items-center gap-1.5 ml-4 px-2 py-0.5 rounded border border-border" style={{ background: 'rgba(255,255,255,0.03)' }}>
+               <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)' }}>F&G:</span>
+               <span style={{ fontSize: 10, fontWeight: 700, color: (system?.fear_greed?.value >= 75) ? 'var(--bull)' : (system?.fear_greed?.value <= 25) ? 'var(--bear)' : 'var(--warn)' }}>
+                 {system?.fear_greed?.value || 50} ({system?.fear_greed?.class || 'Neutral'})
+               </span>
             </div>
 
             {/* Quick Live Prices (Desktop / Tablet) */}
@@ -180,25 +191,88 @@ export default function App() {
         </main>
       </div>
 
-      {/* Mobile Bottom Navigation */}
-      <nav className="md:hidden fixed bottom-0 w-full z-50 border-t flex justify-around items-center h-14" style={{ background: 'var(--bg-card)', borderColor: 'var(--bg-border)' }}>
-        <NavLink to="/dashboard" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full gap-1 ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
-          <LayoutDashboard size={18} />
-          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}>Dashboard</span>
+      {/* Kinetic Smart Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 w-full z-50 border-t flex justify-around items-center h-14" style={{ background: 'rgba(13, 17, 23, 0.85)', backdropFilter: 'blur(12px)', borderColor: 'var(--bg-border)' }}>
+        <NavLink to="/dashboard" onClick={() => setShowMobileMenu(false)} className={({isActive}) => `kinetic-card flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
+          <LayoutDashboard size={20} className={location.pathname.includes('dashboard') ? 'animate-pulse-glow rounded-full' : ''} />
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: location.pathname.includes('dashboard') ? 800 : 500 }}>Dasbor</span>
         </NavLink>
-        <NavLink to="/portfolio" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full gap-1 ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
-          <Wallet size={18} />
-          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}>Portfolio</span>
+        <NavLink to="/portfolio" onClick={() => setShowMobileMenu(false)} className={({isActive}) => `kinetic-card flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
+          <Wallet size={20} className={location.pathname.includes('portfolio') ? 'animate-pulse-glow rounded-full' : ''} />
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: location.pathname.includes('portfolio') ? 800 : 500 }}>Portofolio</span>
         </NavLink>
-        <NavLink to="/scanner" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full gap-1 ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
-          <ScanSearch size={18} />
-          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}>Scanner</span>
+        <NavLink to="/scanner" onClick={() => setShowMobileMenu(false)} className={({isActive}) => `kinetic-card flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
+          <ScanSearch size={20} className={location.pathname.includes('scanner') ? 'animate-pulse-glow rounded-full' : ''} />
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: location.pathname.includes('scanner') ? 800 : 500 }}>Pemindai</span>
         </NavLink>
-        <NavLink to="/settings" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full gap-1 ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
-          <Settings size={18} />
-          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}>Settings</span>
+        <NavLink to="/ai" onClick={() => setShowMobileMenu(false)} className={({isActive}) => `kinetic-card flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
+          <Brain size={20} className={location.pathname.includes('ai') ? 'animate-pulse-glow rounded-full' : ''} />
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: location.pathname.includes('ai') ? 800 : 500 }}>Log AI</span>
         </NavLink>
+        <button onClick={() => setShowMobileMenu(!showMobileMenu)} className={`kinetic-card flex flex-col items-center justify-center w-full h-full gap-1 transition-colors ${showMobileMenu ? 'text-cyan-400' : 'text-gray-500'}`} style={{ color: showMobileMenu ? 'var(--cyan)' : 'var(--text-muted)' }}>
+          {showMobileMenu ? <X size={20} /> : <Menu size={20} />}
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)', fontWeight: showMobileMenu ? 800 : 500 }}>Menu</span>
+        </button>
       </nav>
+
+      {/* Cyberpunk Mobile Bottom Sheet Drawer */}
+      <div 
+        className="md:hidden fixed z-40 transition-all duration-300 ease-[cubic-bezier(0.16,1,0.3,1)]"
+        style={{
+          inset: 0,
+          top: showMobileMenu ? 0 : '100%',
+          background: 'rgba(8, 10, 13, 0.4)',
+          backdropFilter: 'blur(8px)',
+          opacity: showMobileMenu ? 1 : 0,
+          pointerEvents: showMobileMenu ? 'auto' : 'none',
+        }}
+        onClick={() => setShowMobileMenu(false)}
+      >
+        <div 
+          className="absolute bottom-14 left-0 right-0 p-4 border-t border-border"
+          style={{
+            background: 'rgba(13, 17, 23, 0.4)',
+            borderTopLeftRadius: 16,
+            borderTopRightRadius: 16,
+            boxShadow: '0 -10px 40px rgba(0,240,255,0.1)',
+            transform: showMobileMenu ? 'translateY(0)' : 'translateY(100%)',
+            transition: 'transform 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between mb-4 border-b border-border pb-3">
+            <h3 style={{ fontSize: 14, fontWeight: 800, color: 'var(--text-primary)', fontFamily: 'var(--font-display)' }}>Terminal Menu</h3>
+            <button className="btn btn-ghost btn-xs kinetic-card" onClick={() => setShowMobileMenu(false)}><X size={16} /></button>
+          </div>
+          
+          <div className="grid grid-cols-2 gap-3 mb-2">
+            {TABS.map((tab, idx) => {
+              const Icon = tab.icon
+              const active = location.pathname.includes(tab.id)
+              return (
+                <NavLink
+                  key={tab.id}
+                  to={`/${tab.id}`}
+                  onClick={() => setShowMobileMenu(false)}
+                  className="kinetic-card flex items-center gap-3 p-3 rounded-lg border border-border"
+                  style={{
+                    background: active ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.2)',
+                    borderColor: active ? 'var(--accent)' : 'var(--bg-border)',
+                    animationDelay: `${idx * 0.05}s`,
+                    opacity: 0,
+                    animation: showMobileMenu ? 'var(--animate-fade-in-up)' : 'none'
+                  }}
+                >
+                  <Icon size={16} style={{ color: active ? 'var(--accent)' : 'var(--text-muted)' }} />
+                  <span style={{ fontSize: 11, fontWeight: active ? 700 : 500, color: active ? 'var(--text-primary)' : 'var(--text-secondary)' }}>
+                    {tab.label}
+                  </span>
+                </NavLink>
+              )
+            })}
+          </div>
+        </div>
+      </div>
 
       {/* MASTER TOKEN UNLOCK MODAL */}
       {showTokenModal && (
@@ -235,7 +309,7 @@ export default function App() {
               value={tokenInput}
               onChange={e => setTokenInput(e.target.value)}
               className="w-full p-2 rounded mb-3 mono"
-              style={{ background: 'var(--bg-deep)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 12, outline: 'none' }}
+              style={{ background: 'rgba(13, 17, 23, 0.4)', border: '1px solid var(--bg-border)', color: 'var(--text-primary)', fontSize: 12, outline: 'none' }}
             />
 
             <div className="flex justify-end gap-2">

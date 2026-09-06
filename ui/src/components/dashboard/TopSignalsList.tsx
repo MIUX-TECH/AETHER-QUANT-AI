@@ -15,7 +15,7 @@ function SignalCard({ sig }: { sig: any }) {
 
   return (
     <div
-      className={`p-2 rounded bg-deep border border-border flex flex-col justify-between transition-all duration-300 ${expanded ? 'bg-gray-900/50 backdrop-blur-md border-gray-800' : ''}`}
+      className={`p-2 rounded border border-border flex flex-col justify-between transition-all duration-300 ${expanded ? 'bg-gray-900/50 backdrop-blur-md border-gray-800' : ''}`}
       style={{ minHeight: 80 }}
     >
       <div 
@@ -77,13 +77,13 @@ function SignalCard({ sig }: { sig: any }) {
           </div>
 
           {chartData.length > 0 && (
-            <div className="h-40 w-full mt-2 bg-black/20 rounded-md border border-gray-800/50 flex flex-col items-center justify-center p-2">
+            <div className="h-40 w-full mt-2 bg-black/20 backdrop-blur-md rounded-md border border-border flex flex-col items-center justify-center p-2">
               <h4 className="text-[9px] uppercase text-gray-500 font-bold mb-1">8-Pillars Analysis</h4>
               <ResponsiveContainer width="100%" height="100%">
                 <RadarChart cx="50%" cy="50%" outerRadius="70%" data={chartData}>
-                  <PolarGrid stroke="#333" />
-                  <PolarAngleAxis dataKey="subject" tick={{ fill: '#888', fontSize: 8 }} />
-                  <Radar name="Score" dataKey="A" stroke="#00f0ff" fill="#00f0ff" fillOpacity={0.2} />
+                  <PolarGrid stroke="var(--bg-border)" />
+                  <PolarAngleAxis dataKey="subject" tick={{ fill: 'var(--text-muted)', fontSize: 8 }} />
+                  <Radar name="Score" dataKey="A" stroke="var(--cyan)" fill="var(--cyan)" fillOpacity={0.2} />
                 </RadarChart>
               </ResponsiveContainer>
             </div>
@@ -98,7 +98,7 @@ export function TopSignalsList({ signals, navigate }: any) {
   if (!signals || !Array.isArray(signals)) return null;
   
   return (
-    <div className="card p-3 bg-gray-900/20">
+    <div className="card p-3 bg-gray-900/20 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.35s", animationFillMode: "forwards", opacity: 0 }}>
       <div className="flex items-center justify-between mb-2">
         <SectionHeader
           title="Radar Sinyal 8 Pilar Teratas"

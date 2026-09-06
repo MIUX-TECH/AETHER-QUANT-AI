@@ -9,10 +9,10 @@ export function EquityCurveHedge({
   return (
     <div className="grid grid-cols-1 xl:grid-cols-4 gap-3">
       {/* Equity Curve Chart */}
-      <div className="card p-3 xl:col-span-2">
+      <div className="card p-3 xl:col-span-2 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.3s", animationFillMode: "forwards", opacity: 0 }}>
         <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
           <SectionHeader title="Kurva Pertumbuhan Ekuitas" subtitle="Pergerakan nilai portofolio berdasarkan transaksi riil" />
-          <div className="flex items-center gap-1 bg-deep p-0.5 rounded border border-border">
+          <div className="flex items-center gap-1 bg-black/20 p-0.5 rounded border border-border">
             {(['1D', '7D', '30D', 'ALL'] as const).map(range => (
               <button
                 key={range}
@@ -39,7 +39,7 @@ export function EquityCurveHedge({
               <XAxis dataKey="time" stroke="var(--text-muted)" fontSize={9} tickLine={false} />
               <YAxis stroke="var(--text-muted)" fontSize={9} tickLine={false} domain={['auto', 'auto']} tickFormatter={v => `$${v.toFixed(1)}`} />
               <Tooltip
-                contentStyle={{ background: 'var(--bg-card2)', border: '1px solid var(--bg-border)', borderRadius: 6, fontSize: 10, fontFamily: 'var(--font-mono)' }}
+                contentStyle={{ background: 'rgba(13,17,23,0.85)', backdropFilter: 'blur(8px)', border: '1px solid var(--bg-border)', borderRadius: 6, fontSize: 10, fontFamily: 'var(--font-mono)' }}
                 formatter={(v: any) => [`$${Number(v).toFixed(2)}`, 'Ekuitas']}
               />
               <Area type="monotone" dataKey="equity" stroke="#A3E635" strokeWidth={2} fillOpacity={1} fill="url(#eqGrad)" />
@@ -49,7 +49,7 @@ export function EquityCurveHedge({
       </div>
 
       {/* 3-Bucket Hedge Fund Card */}
-      <div className="card p-3 flex flex-col justify-between">
+      <div className="card p-3 flex flex-col justify-between kinetic-card animate-fade-in-up" style={{ animationDelay: "0.13s", animationFillMode: "forwards", opacity: 0 }}>
         <div>
           <SectionHeader title="Alokasi 3-Bucket Hedge Fund" subtitle="Plafon modal & target akumulasi" />
           <div className="flex flex-col gap-2.5 mt-2.5">
@@ -58,7 +58,7 @@ export function EquityCurveHedge({
                 <span style={{ color: '#00F0FF', fontWeight: 700 }}>BTC Vault (Target 70% Spot)</span>
                 <span style={{ fontWeight: 600 }}>${(totalWalletVal * 0.7).toFixed(2)}</span>
               </div>
-              <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ width: '100%', height: 4, background: 'var(--bg-black/20)', borderRadius: 2, overflow: 'hidden' }}>
                 <div style={{ width: '70%', height: '100%', background: '#00F0FF' }} />
               </div>
             </div>
@@ -68,7 +68,7 @@ export function EquityCurveHedge({
                 <span style={{ color: 'var(--bull)' }}>Spot Altcoins (Target 30% Spot)</span>
                 <span style={{ fontWeight: 600 }}>${(totalWalletVal * 0.3).toFixed(2)}</span>
               </div>
-              <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ width: '100%', height: 4, background: 'var(--bg-black/20)', borderRadius: 2, overflow: 'hidden' }}>
                 <div style={{ width: '30%', height: '100%', background: 'var(--bull)' }} />
               </div>
             </div>
@@ -78,7 +78,7 @@ export function EquityCurveHedge({
                 <span style={{ color: 'var(--warn)' }}>Futures Hedge (Target 10% Plafon)</span>
                 <span style={{ fontWeight: 600 }}>${(totalWalletVal * 0.1).toFixed(2)}</span>
               </div>
-              <div style={{ width: '100%', height: 4, background: 'var(--bg-deep)', borderRadius: 2, overflow: 'hidden' }}>
+              <div style={{ width: '100%', height: 4, background: 'var(--bg-black/20)', borderRadius: 2, overflow: 'hidden' }}>
                 <div style={{ width: '10%', height: '100%', background: 'var(--warn)' }} />
               </div>
             </div>
@@ -107,7 +107,7 @@ export function EquityCurveHedge({
       </div>
 
       {/* BTC Halving Cycle Phase Card */}
-      <div className="card p-3 flex flex-col justify-between" style={{ borderLeft: '3px solid var(--accent)' }}>
+      <div className="card p-3 flex flex-col justify-between kinetic-card animate-fade-in-up" style={{ borderLeft: '3px solid var(--accent)', animationDelay: "0.23s", animationFillMode: "forwards", opacity: 0 }}>
         <div>
           <SectionHeader title="Siklus Halving BTC" subtitle="Strategi makro berbasis kuartal" />
           <div className="mt-2">
@@ -120,7 +120,7 @@ export function EquityCurveHedge({
               <span style={{ fontWeight: 700, color: 'var(--text-primary)' }}>~Apr 2028</span>
             </div>
             
-            <div style={{ background: 'var(--bg-deep)', padding: 8, borderRadius: 6, border: '1px solid var(--bg-border)' }}>
+            <div style={{ background: 'var(--bg-black/20)', padding: 8, borderRadius: 6, border: '1px solid var(--bg-border)' }}>
               <div style={{ fontSize: 9, color: 'var(--accent)', fontFamily: 'var(--font-mono)', fontWeight: 700, marginBottom: 2 }}>
                 ACTION PLAN:
               </div>

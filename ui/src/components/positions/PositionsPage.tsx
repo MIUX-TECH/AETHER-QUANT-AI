@@ -64,7 +64,7 @@ export default function PositionsPage() {
     <div className="flex flex-col gap-3">
       {/* Top Action Notification */}
       {actionMessage && (
-        <div className="p-2 rounded border bg-deep flex items-center gap-2" style={{ borderColor: 'var(--bull)' }}>
+        <div className="p-2 rounded border bg-black/20 flex items-center gap-2" style={{ borderColor: 'var(--bull)' }}>
           <CheckCircle2 size={13} style={{ color: 'var(--bull)' }} />
           <span style={{ fontSize: 10.5, fontFamily: 'var(--font-mono)', color: 'var(--bull)' }}>{actionMessage}</span>
         </div>
@@ -132,7 +132,7 @@ export default function PositionsPage() {
 
       {/* Spot Wallet Asset Holdings */}
       {holdings.length > 0 && (
-        <div className="card p-3">
+        <div className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.4s", animationFillMode: "forwards", opacity: 0 }}>
           <div className="flex items-center justify-between mb-2">
             <SectionHeader
               title={`Saldo Koin Spot Binance (${holdings.length})`}
@@ -145,7 +145,7 @@ export default function PositionsPage() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 6 }}>
             {holdings.map((h: any, i: number) => (
-              <div key={i} className="p-2 rounded bg-deep border border-border">
+              <div key={i} className="p-2 rounded bg-black/20 border border-border">
                 <div className="flex items-center justify-between mb-1">
                   <div className="flex items-center gap-1.5">
                     <span className="mono font-bold" style={{ fontSize: 11 }}>{h.asset}</span>
@@ -198,10 +198,9 @@ function PositionDetailCard({
 
   return (
     <div
-      className="card p-3"
-      style={{
+      className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.2s",
         borderLeft: `3px solid ${isBull ? 'var(--bull)' : 'var(--bear)'}`,
-        background: isBull ? 'linear-gradient(135deg, rgba(74,222,128,0.02), var(--bg-card))' : 'linear-gradient(135deg, rgba(248,113,113,0.02), var(--bg-card))'
+        background: isBull ? 'linear-gradient(135deg, rgba(74,222,128,0.02), rgba(13,17,23,0.5))' : 'linear-gradient(135deg, rgba(248,113,113,0.02), rgba(13,17,23,0.5))'
       }}
     >
       {/* Top Bar: Symbol, Badges, PnL & Emergency Close */}
@@ -255,7 +254,7 @@ function PositionDetailCard({
       </div>
 
       {/* Strategy Indicator Bar */}
-      <div className="p-1.5 rounded bg-deep border border-border flex justify-between items-center flex-wrap gap-2" style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)' }}>
+      <div className="p-1.5 rounded bg-black/20 border border-border flex justify-between items-center flex-wrap gap-2" style={{ fontSize: 9.5, fontFamily: 'var(--font-mono)' }}>
         <div className="flex items-center gap-3">
           <span style={{ color: 'var(--text-muted)' }}>
             Qty: <span style={{ color: 'var(--text-primary)', fontWeight: 600 }}>{Number(pos.qty || 0).toFixed(4)}</span>
@@ -303,7 +302,7 @@ function PriceBox({
 }) {
   const color = highlight ? 'var(--accent)' : danger ? 'var(--bear)' : bull ? 'var(--bull)' : 'var(--text-primary)'
   return (
-    <div style={{ background: 'var(--bg-deep)', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--bg-border)' }}>
+    <div style={{ background: 'var(--bg-black/20)', padding: '4px 6px', borderRadius: 4, border: '1px solid var(--bg-border)' }}>
       <div style={{ fontSize: 7.5, fontFamily: 'var(--font-mono)', color: 'var(--text-muted)', textTransform: 'uppercase' }}>
         {label}
       </div>

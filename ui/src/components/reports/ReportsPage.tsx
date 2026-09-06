@@ -62,7 +62,7 @@ export default function ReportsPage() {
           { label: 'Profit Factor', value: perf.profit_factor?.toFixed(2), positive: perf.profit_factor >= 1 },
           { label: 'Max Drawdown', value: `${(perf.max_drawdown_pct * 100).toFixed(2)}%`, positive: perf.max_drawdown_pct < 0.1 },
         ].map(m => (
-          <div key={m.label} className="card p-4">
+          <div key={m.label} className="card p-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.16s", animationFillMode: "forwards", opacity: 0 }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 6 }}>
               {m.label}
             </div>
@@ -84,7 +84,7 @@ export default function ReportsPage() {
           { label: 'Avg Win', value: `+$${perf.avg_win_usdt?.toFixed(2)}`, color: 'var(--bull)' },
           { label: 'Avg Loss', value: `$${perf.avg_loss_usdt?.toFixed(2)}`, color: 'var(--bear)' },
         ].map(m => (
-          <div key={m.label} className="card p-3">
+          <div key={m.label} className="card p-3 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.38s", animationFillMode: "forwards", opacity: 0 }}>
             <div style={{ fontSize: 10, color: 'var(--text-muted)', fontFamily: 'var(--font-mono)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: 4 }}>
               {m.label}
             </div>
@@ -97,7 +97,7 @@ export default function ReportsPage() {
 
       {/* Equity curve */}
       {equity.length > 1 && (
-        <div className="card p-4 mb-4">
+        <div className="card p-4 mb-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.23s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Kurva Modal" subtitle={`${equity.length} titik data`} />
           <ResponsiveContainer width="100%" height={180}>
             <LineChart data={equity} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -118,7 +118,7 @@ export default function ReportsPage() {
 
       {/* Daily PnL bar chart */}
       {equity.length > 1 && (
-        <div className="card p-4 mb-4">
+        <div className="card p-4 mb-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.3s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Daily PnL" />
           <ResponsiveContainer width="100%" height={140}>
             <BarChart data={equity.slice(-30)} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
@@ -141,7 +141,7 @@ export default function ReportsPage() {
 
       {/* By symbol */}
       {perf.by_symbol && Object.keys(perf.by_symbol).length > 0 && (
-        <div className="card p-4 mb-4">
+        <div className="card p-4 mb-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.2s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Performance by Symbol" />
           <div className="table-wrap">
             <table>
@@ -178,7 +178,7 @@ export default function ReportsPage() {
 
       {/* By strategy */}
       {perf.by_strategy && Object.keys(perf.by_strategy).length > 0 && (
-        <div className="card p-4">
+        <div className="card p-4 kinetic-card animate-fade-in-up" style={{ animationDelay: "0.3s", animationFillMode: "forwards", opacity: 0 }}>
           <SectionHeader title="Performance by Strategy" />
           <div className="table-wrap">
             <table>
