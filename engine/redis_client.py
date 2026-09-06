@@ -27,6 +27,13 @@ class RedisManager:
             redis_url = os.getenv("REDIS_URL") or os.getenv("UPSTASH_REDIS_URL")
             
             if not redis_url:
+                rest_url = os.getenv("UPSTASH_REDIS_REST_URL")
+                rest_token = os.getenv("UPSTASH_REDIS_REST_TOKEN")
+                if rest_url and rest_token:
+                    host = rest_url.replace("https://", "").rstrip("/")
+                    redis_url = f"rediss://default:{rest_token}@{host}:6379"
+            
+            if not redis_url:
                 logger.warning("No REDIS_URL found. Running in offline/mock mode.")
                 self.client = None
             else:

@@ -584,6 +584,30 @@ class TradingOrchestrator:
                 futures_score["ai_reasoning"] = ai_val.get("reasoning", "Validasi AI disetujui")
                 logger.info(f"🤖 AI APPROVED FUTURES {symbol}: {futures_score['ai_reasoning']}")
 
+        # Auto-transfer funds to futures if needed
+        margin_required = sizing.get("position_usdt", 0)
+        actual_futures_equity = self.state.get("portfolio", {}).get("futures_equity", 0.0)
+        
+        if actual_futures_equity < margin_required:
+            shortfall = margin_required - actual_futures_equity
+            # Add a 5% buffer to shortfall to prevent dust issues
+            transfer_amount = round(shortfall * 1.05, 2)
+            actual_spot_equity = self.state.get("portfolio", {}).get("spot_equity", 0.0)
+            
+            if actual_spot_equity >= transfer_amount and transfer_amount >= 1.0:
+                logger.info(f"Auto-transferring {transfer_amount} USDT to futures for {symbol} trade")
+                transfer_res = self.executor.execute_futures_transfer(transfer_amount, "spot_to_futures")
+                if transfer_res and transfer_res.get("status") == "SUCCESS":
+                    self.state.setdefault("portfolio", {})["futures_equity"] = actual_futures_equity + transfer_amount
+                    self.state.setdefault("portfolio", {})["spot_equity"] = actual_spot_equity - transfer_amount
+                    # Small delay to ensure Binance recognizes the transfer
+                    import time
+                    time.sleep(1.5)
+                else:
+                    return {"executed": False, "reason": "Failed to transfer funds to futures"}
+            else:
+                return {"executed": False, "reason": f"Insufficient spot balance to fund futures trade (need {transfer_amount})"}
+
         order = self.executor.place_futures_order(
             symbol, side, sizing.get("position_qty", 0),
             current_price, "MARKET", leverage
@@ -741,6 +765,22 @@ class TradingOrchestrator:
         # Record to history
         self.memory_service.record_trade(closed)
         self._closed_today.append(closed)
+
+        # Auto-transfer back to Spot if futures
+        if trade_type == "futures":
+            margin_used = position.get("margin_used", 0.0)
+            pnl_val_t = float(closed.get("pnl_usdt", 0))
+            transfer_back = round(margin_used + pnl_val_t, 2)
+            if transfer_back >= 1.0:
+                logger.info(f"Auto-transferring {transfer_back} USDT from futures to spot after closing {symbol}")
+                transfer_res = self.executor.execute_futures_transfer(transfer_back, "futures_to_spot")
+                if transfer_res and transfer_res.get("status") == "SUCCESS":
+                    f_eq = self.state.setdefault("portfolio", {}).get("futures_equity", transfer_back)
+                    s_eq = self.state.setdefault("portfolio", {}).get("spot_equity", 0.0)
+                    self.state["portfolio"]["futures_equity"] = max(0.0, f_eq - transfer_back)
+                    self.state["portfolio"]["spot_equity"] = s_eq + transfer_back
+                else:
+                    logger.error(f"Failed to auto-transfer funds back to spot for {symbol}")
 
         # Update risk state
         self.state = self.risk_manager.update_risk_state(self.state, closed)

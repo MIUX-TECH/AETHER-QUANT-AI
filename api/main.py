@@ -589,6 +589,21 @@ def get_wallet(verified: bool = Depends(verify_master_token)):
             futures_data = orchestrator.executor.get_futures_account()
             futures_usd = float(futures_data.get("totalMarginBalance", 0.0))
             total_usd += futures_usd
+            
+            for f_asset in futures_data.get("assets", []):
+                wallet_bal = float(f_asset.get("walletBalance", 0))
+                margin_bal = float(f_asset.get("marginBalance", 0))
+                if wallet_bal > 0.000001:
+                    items.append({
+                        "asset": f_asset["asset"],
+                        "underlying": f_asset["asset"],
+                        "category": "futures",
+                        "free": wallet_bal,
+                        "locked": margin_bal - wallet_bal if margin_bal >= wallet_bal else 0,
+                        "total": margin_bal,
+                        "price": 1.0 if f_asset["asset"] in ["USDT", "USD", "BUSD", "USDC"] else 0.0,
+                        "usd_value": round(margin_bal, 4)
+                    })
     except Exception:
         pass
 
