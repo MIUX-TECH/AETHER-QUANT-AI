@@ -166,24 +166,6 @@ export default function Navigation() {
         </div>
       </aside>
 
-      {/* Mobile Bottom Bar Navigation (Thumb-friendly) */}
-      <nav className="mobile-nav">
-        {MOBILE_PRIMARY_TABS.map(id => {
-          const tab = TABS.find(t => t.id === id)!
-          const Icon = tab.icon
-          const active = activeTab === tab.id
-          return (
-            <button
-              key={id}
-              className={`mobile-nav-item ${active ? 'active' : ''}`}
-              onClick={() => navigate(`/${id}`)}
-            >
-              <Icon size={16} />
-              <span>{tab.label}</span>
-            </button>
-          )
-        })}
-      </nav>
     </>
   )
 }

@@ -9,13 +9,13 @@ import PortfolioPage from './components/portfolio/PortfolioPage'
 import HistoryPage from './components/history/HistoryPage'
 import AIDecisionsPage from './components/ai/AIDecisionsPage'
 import MemoryPage from './components/memory/MemoryPage'
-import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation , NavLink } from 'react-router-dom'
 import NewsPage from './components/ai/NewsPage'
 import ReportsPage from './components/reports/ReportsPage'
 import SettingsPage from './components/settings/SettingsPage'
 import {
   Lock, Unlock, RefreshCw, Zap, ShieldAlert, ChevronDown,
-  Coins, TrendingUp, AlertTriangle, ShieldCheck
+  Coins, TrendingUp, AlertTriangle, ShieldCheck, LayoutDashboard, Wallet, ScanSearch, Settings
 } from 'lucide-react'
 import { api, getAdminToken, setAdminToken } from './utils/api'
 
@@ -74,7 +74,7 @@ export default function App() {
   const solPrice = Number(wallet?.assets?.find((a: any) => a.asset === 'SOL' || a.underlying === 'SOL')?.price || 0)
 
   return (
-    <div className="app-shell">
+    <div className="app-shell md:pb-0 pb-14">
       {/* Sidebar Navigation */}
       <Navigation />
 
@@ -179,6 +179,26 @@ export default function App() {
           </div>
         </main>
       </div>
+
+      {/* Mobile Bottom Navigation */}
+      <nav className="md:hidden fixed bottom-0 w-full z-50 border-t flex justify-around items-center h-14" style={{ background: 'var(--bg-card)', borderColor: 'var(--bg-border)' }}>
+        <NavLink to="/dashboard" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full gap-1 ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
+          <LayoutDashboard size={18} />
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}>Dashboard</span>
+        </NavLink>
+        <NavLink to="/portfolio" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full gap-1 ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
+          <Wallet size={18} />
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}>Portfolio</span>
+        </NavLink>
+        <NavLink to="/scanner" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full gap-1 ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
+          <ScanSearch size={18} />
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}>Scanner</span>
+        </NavLink>
+        <NavLink to="/settings" className={({isActive}) => `flex flex-col items-center justify-center w-full h-full gap-1 ${isActive ? 'text-lime-400' : 'text-gray-500'}`} style={({isActive}) => ({ color: isActive ? 'var(--accent)' : 'var(--text-muted)' })}>
+          <Settings size={18} />
+          <span style={{ fontSize: 9, fontFamily: 'var(--font-mono)' }}>Settings</span>
+        </NavLink>
+      </nav>
 
       {/* MASTER TOKEN UNLOCK MODAL */}
       {showTokenModal && (
